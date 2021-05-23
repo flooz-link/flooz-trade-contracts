@@ -1,0 +1,85 @@
+image: node:12.22.1-buster
+
+pipelines:
+  pull-requests:  
+    '**': #this runs as default for any branch not elsewhere defined
+       - parallel:
+          - step:
+              name: 'Coverage'
+              script:
+                - yarn install
+                - yarn compile
+                - yarn coverage
+          - step:
+              name: 'Lint'
+              script:
+                - yarn install
+                - yarn lint:sol
+          - step:
+              name: 'Lint TS'
+              script:
+                - yarn install
+                - yarn compile
+                - yarn lint:ts
+          - step:
+              name: 'Test'
+              script:
+                - yarn
+                - yarn compile
+                - yarn test
+  branches:
+      test_pipelines:
+        - parallel:
+          - step:
+              name: 'Coverage'
+              script:
+                - yarn install
+                - yarn compile
+                - yarn coverage
+          - step:
+              name: 'Lint'
+              script:
+                - yarn install
+                - yarn lint:sol
+          - step:
+              name: 'Lint TS'
+              script:
+                - yarn install
+                - yarn compile
+                - yarn lint:ts
+          - step:
+              name: 'Test'
+              script:
+                - yarn
+                - yarn compile
+                - yarn test
+      master:
+        - parallel:
+          - step:
+              name: 'Coverage'
+              script:
+                - yarn install
+                - yarn compile
+                - yarn coverage
+          - step:
+              name: 'Lint'
+              script:
+                - yarn install
+                - yarn lint:sol
+          - step:
+              name: 'Lint TS'
+              script:
+                - yarn install
+                - yarn compile
+                - yarn lint:ts
+          - step:
+              name: 'Test'
+              script:
+                - yarn
+                - yarn compile
+                - yarn test
+          - step:
+              name: 'Create Tag'
+              script:
+                - git tag -am "Tagging for release ${BITBUCKET_BUILD_NUMBER}" release-${BITBUCKET_BUILD_NUMBER}
+                - git push origin release-${BITBUCKET_BUILD_NUMBER}

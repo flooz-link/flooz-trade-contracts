@@ -1,0 +1,17 @@
+{
+  "extends": "solhint:recommended",
+  "plugins": ["prettier"],
+  "rules": {
+    "no-unused-vars": "warn",
+    "payable-fallback": "warn",
+    "reason-string": ["warn",{"maxLength":32}],
+    "func-param-name-mixedcase": "warn",
+    "private-vars-leading-underscore": ["warn",{"strict":false}],
+    "ordering": "warn",
+    "modifier-name-mixedcase": "warn",
+    "comprehensive-interface": "warn",
+    "compiler-version": ["warn","=0.7.6"],
+    "func-visibility": ["warn", { "ignoreConstructors": true }],
+    "prettier/prettier": "error"
+  }
+}

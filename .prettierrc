@@ -1,0 +1,26 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 140,
+  "tabWidth": 4,
+  "proseWrap": "always",
+  "overrides": [
+      {
+        "files": "*.sol",
+        "options": {
+            "printWidth": 140,
+            "tabWidth": 4,
+            "useTabs": false,
+            "bracketSpacing": false,
+            "explicitTypes": "always",
+            "singleQuote": false
+        }
+      },
+      {
+        "files": "*.md",
+        "options": {
+            "tabWidth": 2
+        }
+      }
+  ]
+}
