@@ -3,11 +3,11 @@ pragma solidity >=0.7.6;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "../interfaces/IPancakeFactory.sol";
-import "../libraries/TransferHelper.sol";
-import "../interfaces/ISaveYourPancakeRouter02.sol";
-import "../libraries/PancakeLibrary.sol";
-import "../interfaces/IWETH.sol";
+import "./interfaces/IPancakeFactory.sol";
+import "./libraries/TransferHelper.sol";
+import "./interfaces/ISaveYourPancakeRouter02.sol";
+import "./libraries/PancakeLibrary.sol";
+import "./interfaces/IWETH.sol";
 import "hardhat/console.sol";
 
 /* 

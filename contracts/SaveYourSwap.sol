@@ -3,9 +3,9 @@ pragma solidity >=0.7.6;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "../interfaces/ISaveYourSwapERC20.sol";
-import "../libraries/PancakeLibrary.sol";
-import "../interfaces/IPancakeRouter02.sol";
+import "./interfaces/ISaveYourSwapERC20.sol";
+import "./libraries/PancakeLibrary.sol";
+import "./interfaces/IPancakeRouter02.sol";
 import "hardhat/console.sol";
 
 contract SaveYourSwap is Ownable {
