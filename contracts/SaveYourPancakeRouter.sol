@@ -10,11 +10,6 @@ import "./libraries/PancakeLibrary.sol";
 import "./interfaces/IWETH.sol";
 import "hardhat/console.sol";
 
-/* 
-ToDo:
-– Take amountMins into accout in calculation 
-*/
-
 contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
     using SafeMath for uint256;
 
@@ -71,17 +66,17 @@ contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
         }
     }
 
-    function swapETHForExactTokens(
-        uint256 amountOut,
+    function swapExactETHForTokens(
+        uint256 amountOutMin,
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external payable override ensure(deadline) returns (uint256[] memory amounts) {
-        require(path[0] == WETH, "SaveYourPancake: BNB has to be first path item");
-        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amountOut);
-        amounts = PancakeLibrary.getAmountsIn(factory, swapAmount, path);
-        require(amounts[0] <= msg.value, "SaveYourPancake: insufficient BNB send");
-        IWETH(WETH).deposit{value: amounts[0].add(feeAmount)}();
+    ) external payable virtual override ensure(deadline) returns (uint256[] memory amounts) {
+        require(path[0] == WETH, "SaveYourPancakeRouter: INVALID_PATH");
+        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(msg.value);
+        amounts = PancakeLibrary.getAmountsOut(factory, swapAmount, path);
+        require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancakeRouter: INSUFFICIENT_OUTPUT_AMOUNT");
+        IWETH(WETH).deposit{value: amounts[0]}();
         assert(IWETH(WETH).transfer(PancakeLibrary.pairFor(factory, path[0], path[1]), amounts[0]));
         assert(IWETH(WETH).transfer(feeReceiver, feeAmount));
         _swap(amounts, path, to);
@@ -130,25 +125,19 @@ contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
         TransferHelper.safeTransferETH(feeReceiver, feeAmount);
     }
 
-    function swapExactETHForTokensSupportingFeeOnTransferTokens(
+    function swapExactTokensForTokens(
+        uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external payable virtual override ensure(deadline) {
-        require(path[0] == WETH, "SaveYourPancake: BNB has to be the first path item");
-        uint256 amountIn = msg.value;
-        (uint256 inputAmount, uint256 feeAmount) = _calculateFee(amountIn);
-
-        IWETH(WETH).deposit{value: inputAmount}();
-        assert(IWETH(WETH).transfer(PancakeLibrary.pairFor(factory, path[0], path[1]), inputAmount));
-        uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(to);
-        _swapSupportingFeeOnTransferTokens(path, to);
-        require(
-            IERC20(path[path.length - 1]).balanceOf(to).sub(balanceBefore) >= amountOutMin,
-            "SaveYourPancake: slippage setting to low"
-        );
-        TransferHelper.safeTransferETH(feeReceiver, feeAmount);
+    ) external virtual override ensure(deadline) returns (uint256[] memory amounts) {
+        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amountIn);
+        amounts = PancakeLibrary.getAmountsOut(factory, swapAmount, path);
+        require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancake: INSUFFICIENT_OUTPUT_AMOUNT");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, PancakeLibrary.pairFor(factory, path[0], path[1]), amounts[0]);
+        TransferHelper.safeTransferFrom(path[0], msg.sender, feeReceiver, feeAmount);
+        _swap(amounts, path, to);
     }
 
     function _calculateFee(uint256 amount) internal view returns (uint256 swapAmount, uint256 feeAmount) {
@@ -169,6 +158,7 @@ contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
     ) public view returns (uint256 reserveA, uint256 reserveB) {
         return PancakeLibrary.getReserves(factory, tokenA, tokenB);
     }
+
     function quote(
         uint256 amountA,
         uint256 reserveA,

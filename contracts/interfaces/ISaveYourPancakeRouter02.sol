@@ -10,11 +10,4 @@ interface ISaveYourPancakeRouter02 is ISaveYourPancakeRouter01 {
         address to,
         uint256 deadline
     ) external;
-
-    function swapExactETHForTokensSupportingFeeOnTransferTokens(
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external payable;
 }
