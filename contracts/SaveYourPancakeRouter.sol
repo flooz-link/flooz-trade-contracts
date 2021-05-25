@@ -1,5 +1,6 @@
 pragma solidity =0.6.6;
 
+// SPDX-License-Identifier: UNLICENSED
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -7,7 +8,7 @@ import "./libraries/TransferHelper.sol";
 import "./libraries/PancakeLibrary.sol";
 import "./interfaces/IWETH.sol";
 
-contract SaveYourPancakeRouter is Ownable {
+contract TestingRouter is Ownable {
     using SafeMath for uint256;
     event SwapFeeUpdated(uint8 swapFee);
     event FeeReceiverUpdated(address feeReceiver);

@@ -21,7 +21,6 @@ module.exports = {
         },
         testnet: {
             live: true,
-            tags: ['testnet'],
             allowUnlimitedContractSize: true,
             url: 'https://data-seed-prebsc-1-s1.binance.org:8545',
             chainId: 97,
@@ -30,7 +29,6 @@ module.exports = {
         },
         mainnet: {
             live: true,
-            tags: ['mainnet'],
             url: 'https://bsc-dataseed1.defibit.io/',
             chainId: 56,
             gasPrice: 30000000000,
@@ -69,5 +67,10 @@ module.exports = {
     },
     etherscan: {
         apiKey: process.env.ETHERSCAN_API_KEY,
+    },
+    namedAccounts: {
+        deployer: {
+            default: 0,
+        },
     },
 }

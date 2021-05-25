@@ -24,7 +24,7 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     let balanceThreshold = expandTo18Decimals(10000)
     let ERC20 = await ethers.getContractFactory('ERC20')
     let WETH9 = await ethers.getContractFactory('WETH9')
-    let SaveYourPancakeRouter = await ethers.getContractFactory('SaveYourPancakeRouter')
+    let SaveYourPancakeRouter = await ethers.getContractFactory('TestingRouter')
     let PancakeFactory = await ethers.getContractFactory('PancakeFactory')
     let RouterEventEmitter = await ethers.getContractFactory('RouterEventEmitter')
 
