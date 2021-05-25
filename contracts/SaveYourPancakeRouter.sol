@@ -3,23 +3,19 @@ pragma solidity =0.6.6;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./interfaces/IPancakeFactory.sol";
 import "./libraries/TransferHelper.sol";
-import "./interfaces/ISaveYourPancakeRouter02.sol";
 import "./libraries/PancakeLibrary.sol";
 import "./interfaces/IWETH.sol";
-import "hardhat/console.sol";
 
-contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
+contract SaveYourPancakeRouter is Ownable {
     using SafeMath for uint256;
-
     event SwapFeeUpdated(uint8 swapFee);
     event FeeReceiverUpdated(address feeReceiver);
 
     uint256 public constant FEE_DENOMINATOR = 10000;
-    address public immutable override factory;
-    address public immutable override WETH;
     IERC20 public saveYourAssetsToken;
+    address public immutable factory;
+    address public immutable WETH;
     uint256 public balanceThreshold;
     address public feeReceiver;
     uint8 public swapFee;
@@ -71,7 +67,7 @@ contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external payable virtual override ensure(deadline) returns (uint256[] memory amounts) {
+    ) external payable ensure(deadline) returns (uint256[] memory amounts) {
         require(path[0] == WETH, "SaveYourPancakeRouter: INVALID_PATH");
         (uint256 swapAmount, uint256 feeAmount) = _calculateFee(msg.value);
         amounts = PancakeLibrary.getAmountsOut(factory, swapAmount, path);
@@ -99,7 +95,6 @@ contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
                 (uint256 reserveInput, uint256 reserveOutput) = input == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
                 amountInput = IERC20(input).balanceOf(address(pair)).sub(reserveInput);
                 amountOutput = PancakeLibrary.getAmountOut(amountInput, reserveInput, reserveOutput);
-                console.log("Inside _swapSupportingFeeOnTransferTokens amountOutput: ", amountOutput);
             }
             (uint256 amount0Out, uint256 amount1Out) = input == token0 ? (uint256(0), amountOutput) : (amountOutput, uint256(0));
             address to = i < path.length - 2 ? PancakeLibrary.pairFor(factory, output, path[i + 2]) : _to;
@@ -113,7 +108,7 @@ contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external override ensure(deadline) {
+    ) external ensure(deadline) {
         require(path[path.length - 1] == WETH, "SaveYourPancake: BNB has to be the last path item");
         TransferHelper.safeTransferFrom(path[0], msg.sender, PancakeLibrary.pairFor(factory, path[0], path[1]), amountIn);
         _swapSupportingFeeOnTransferTokens(path, address(this));
@@ -131,7 +126,7 @@ contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external virtual override ensure(deadline) returns (uint256[] memory amounts) {
+    ) external ensure(deadline) returns (uint256[] memory amounts) {
         (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amountIn);
         amounts = PancakeLibrary.getAmountsOut(factory, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancake: INSUFFICIENT_OUTPUT_AMOUNT");
@@ -148,47 +143,6 @@ contract TestingRouter is ISaveYourPancakeRouter02, Ownable {
             feeAmount = amount.sub(amount.mul(swapFee).div(FEE_DENOMINATOR));
             swapAmount = amount.sub(feeAmount);
         }
-    }
-
-    // **** LIBRARY FUNCTIONS ****
-    function getReserves(
-        address factory,
-        address tokenA,
-        address tokenB
-    ) public view returns (uint256 reserveA, uint256 reserveB) {
-        return PancakeLibrary.getReserves(factory, tokenA, tokenB);
-    }
-
-    function quote(
-        uint256 amountA,
-        uint256 reserveA,
-        uint256 reserveB
-    ) public pure override returns (uint256 amountB) {
-        return PancakeLibrary.quote(amountA, reserveA, reserveB);
-    }
-
-    function getAmountOut(
-        uint256 amountIn,
-        uint256 reserveIn,
-        uint256 reserveOut
-    ) public pure override returns (uint256 amountOut) {
-        return PancakeLibrary.getAmountOut(amountIn, reserveIn, reserveOut);
-    }
-
-    function getAmountIn(
-        uint256 amountOut,
-        uint256 reserveIn,
-        uint256 reserveOut
-    ) public pure override returns (uint256 amountIn) {
-        return PancakeLibrary.getAmountIn(amountOut, reserveIn, reserveOut);
-    }
-
-    function getAmountsOut(uint256 amountIn, address[] memory path) public view override returns (uint256[] memory amounts) {
-        return PancakeLibrary.getAmountsOut(factory, amountIn, path);
-    }
-
-    function getAmountsIn(uint256 amountOut, address[] memory path) public view override returns (uint256[] memory amounts) {
-        return PancakeLibrary.getAmountsIn(factory, amountOut, path);
     }
 
     function updateSwapFee(uint8 newSwapFee) external onlyOwner {

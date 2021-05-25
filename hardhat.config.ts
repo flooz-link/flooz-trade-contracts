@@ -3,11 +3,8 @@ import '@nomiclabs/hardhat-waffle'
 import 'hardhat-deploy'
 import 'solidity-coverage'
 import '@nomiclabs/hardhat-etherscan'
-import 'hardhat-gas-reporter'
 import 'hardhat-dependency-compiler'
 import 'hardhat-typechain'
-import 'hardhat-tracer'
-import 'hardhat-log-remover'
 
 require('dotenv').config()
 
@@ -48,7 +45,7 @@ module.exports = {
         },
     },
     mocha: {
-        timeout: '10000000s',
+        timeout: '100s',
     },
     paths: {
         artifacts: 'build/artifacts',
@@ -60,67 +57,17 @@ module.exports = {
     solidity: {
         compilers: [
             {
-                version: '0.7.6',
+                version: '0.6.6',
             },
             {
                 version: '0.5.16',
             },
-            {
-                version: '0.6.6',
-            },
         ],
-        settings: {
-            outputSelection: {
-                '*': {
-                    '*': ['storageLayout'],
-                },
-            },
-            metadata: {
-                bytecodeHash: 'none',
-            },
-        },
     },
     dependencyCompiler: {
-        paths: ['pancakeswap-peripheral/contracts/test/WETH9.sol'],
-    },
-    gasReporter: {
-        currency: 'USD',
-        enabled: false,
-        gasPrice: 6,
+        paths: ['@pancakeswap-libs/pancake-swap-core/contracts/PancakeFactory.sol'],
     },
     etherscan: {
         apiKey: process.env.ETHERSCAN_API_KEY,
-    },
-    namedAccounts: {
-        deployer: {
-            default: 0,
-        },
-        admin: {
-            default: 1,
-        },
-        karen: {
-            default: 2,
-        },
-        bob: {
-            default: 3,
-        },
-        randy: {
-            default: 4,
-        },
-        stan: {
-            default: 5,
-        },
-        ultraWhale: {
-            default: 6,
-        },
-        whale: {
-            default: 7,
-        },
-        fish: {
-            default: 8,
-        },
-        shrimp: {
-            default: 9,
-        },
     },
 }

@@ -1,20 +1,6 @@
-import { Wallet, Contract } from 'ethers'
-import { Web3Provider } from 'ethers/providers'
-import { deployContract } from 'ethereum-waffle'
-
+import { Contract, Wallet } from 'ethers'
+import { ethers } from 'hardhat'
 import { expandTo18Decimals } from './utilities'
-
-import PancakeFactory from '@uniswap/v2-core/build/PancakeFactory.json'
-import IPancakePair from '@uniswap/v2-core/build/IPancakePair.json'
-
-import ERC20 from '../../build/ERC20.json'
-import WETH9 from '../../build/WETH9.json'
-import UniswapV1Exchange from '../../build/UniswapV1Exchange.json'
-import UniswapV1Factory from '../../build/UniswapV1Factory.json'
-import PancakeRouter01 from '../../build/PancakeRouter01.json'
-import PancakeMigrator from '../../build/PancakeMigrator.json'
-import PancakeRouter02 from '../../build/PancakeRouter02.json'
-import RouterEventEmitter from '../../build/RouterEventEmitter.json'
 
 const overrides = {
     gasLimit: 9999999,
@@ -25,51 +11,51 @@ interface V2Fixture {
     token1: Contract
     WETH: Contract
     WETHPartner: Contract
-    factoryV1: Contract
     factoryV2: Contract
-    router01: Contract
-    router02: Contract
-    routerEventEmitter: Contract
     router: Contract
-    migrator: Contract
-    WETHExchangeV1: Contract
     pair: Contract
     WETHPair: Contract
+    routerEventEmitter: Contract
 }
 
-export async function v2Fixture(provider: Web3Provider, [wallet]: Wallet[]): Promise<V2Fixture> {
-    // deploy tokens
-    const tokenA = await deployContract(wallet, ERC20, [expandTo18Decimals(10000)])
-    const tokenB = await deployContract(wallet, ERC20, [expandTo18Decimals(10000)])
-    const WETH = await deployContract(wallet, WETH9)
-    const WETHPartner = await deployContract(wallet, ERC20, [expandTo18Decimals(10000)])
+export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
+    let swapFee = 100
+    let feeReceiver = wallet.address
+    let balanceThreshold = expandTo18Decimals(10000)
+    let ERC20 = await ethers.getContractFactory('ERC20')
+    let WETH9 = await ethers.getContractFactory('WETH9')
+    let SaveYourPancakeRouter = await ethers.getContractFactory('SaveYourPancakeRouter')
+    let PancakeFactory = await ethers.getContractFactory('PancakeFactory')
+    let RouterEventEmitter = await ethers.getContractFactory('RouterEventEmitter')
 
-    // deploy V1
-    const factoryV1 = await deployContract(wallet, UniswapV1Factory, [])
-    await factoryV1.initializeFactory((await deployContract(wallet, UniswapV1Exchange, [])).address)
+    // deploy tokens
+    const tokenA = await ERC20.deploy(expandTo18Decimals(10000))
+    const tokenB = await ERC20.deploy(expandTo18Decimals(10000))
+    const WETH = await WETH9.deploy()
+    const WETHPartner = await ERC20.deploy(expandTo18Decimals(10000))
 
     // deploy V2
-    const factoryV2 = await deployContract(wallet, PancakeFactory, [wallet.address])
+    const factoryV2 = await PancakeFactory.deploy(wallet.address)
+    console.log('INIT_CODE_PAIR_HASH:', await factoryV2.INIT_CODE_PAIR_HASH())
 
-    // deploy routers
-    const router01 = await deployContract(wallet, PancakeRouter01, [factoryV2.address, WETH.address], overrides)
-    const router02 = await deployContract(wallet, PancakeRouter02, [factoryV2.address, WETH.address], overrides)
+    // deploy router
+    const router = await SaveYourPancakeRouter.deploy(
+        factoryV2.address,
+        WETH.address,
+        swapFee,
+        feeReceiver,
+        balanceThreshold,
+        tokenA.address,
+        overrides
+    )
 
     // event emitter for testing
-    const routerEventEmitter = await deployContract(wallet, RouterEventEmitter, [])
-
-    // deploy migrator
-    const migrator = await deployContract(wallet, PancakeMigrator, [factoryV1.address, router01.address], overrides)
-
-    // initialize V1
-    await factoryV1.createExchange(WETHPartner.address, overrides)
-    const WETHExchangeV1Address = await factoryV1.getExchange(WETHPartner.address)
-    const WETHExchangeV1 = new Contract(WETHExchangeV1Address, JSON.stringify(UniswapV1Exchange.abi), provider).connect(wallet)
+    const routerEventEmitter = await RouterEventEmitter.deploy()
 
     // initialize V2
     await factoryV2.createPair(tokenA.address, tokenB.address)
     const pairAddress = await factoryV2.getPair(tokenA.address, tokenB.address)
-    const pair = new Contract(pairAddress, JSON.stringify(IPancakePair.abi), provider).connect(wallet)
+    const pair = await ethers.getContractAt('PancakePair', pairAddress)
 
     const token0Address = await pair.token0()
     const token0 = tokenA.address === token0Address ? tokenA : tokenB
@@ -77,22 +63,17 @@ export async function v2Fixture(provider: Web3Provider, [wallet]: Wallet[]): Pro
 
     await factoryV2.createPair(WETH.address, WETHPartner.address)
     const WETHPairAddress = await factoryV2.getPair(WETH.address, WETHPartner.address)
-    const WETHPair = new Contract(WETHPairAddress, JSON.stringify(IPancakePair.abi), provider).connect(wallet)
+    const WETHPair = await ethers.getContractAt('PancakePair', WETHPairAddress)
 
     return {
         token0,
         token1,
         WETH,
         WETHPartner,
-        factoryV1,
         factoryV2,
-        router01,
-        router02,
-        router: router02, // the default router, 01 had a minor bug
-        routerEventEmitter,
-        migrator,
-        WETHExchangeV1,
+        router,
         pair,
         WETHPair,
+        routerEventEmitter,
     }
 }
