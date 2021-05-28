@@ -67,6 +67,18 @@ describe('SaveYourPancakeRouter', () => {
             })
 
             it.only('happy path', async () => {
+                const trade = await router.swapExactTokensForTokens(
+                    swapAmount,
+                    0,
+                    [token0.address, token1.address],
+                    owner.address,
+                    ethers.constants.MaxUint256,
+                    overrides
+                )
+
+                const receipt = await waffle.provider.getTransactionReceipt(trade.hash)
+                console.log(JSON.stringify(receipt))
+
                 await expect(
                     router.swapExactTokensForTokens(
                         swapAmount,
@@ -77,9 +89,11 @@ describe('SaveYourPancakeRouter', () => {
                         overrides
                     )
                 )
+                console.log('Test FirstTransfer ', swapAmount.toString())
+
+                /*
                     .to.emit(token0, 'Transfer')
-                    .withArgs(owner.address,)
-                    /*
+                    .withArgs(owner.address, pair.address, swapAmount)
                     .to.emit(token1, 'Transfer')
                     .withArgs(pair.address, wallet.address, expectedOutputAmount)
                     .to.emit(pair, 'Sync')

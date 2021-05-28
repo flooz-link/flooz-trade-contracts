@@ -39,15 +39,7 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     console.log('INIT_CODE_PAIR_HASH:', await factoryV2.INIT_CODE_PAIR_HASH())
 
     // deploy router
-    const router = await SaveYourPancakeRouter.deploy(
-        factoryV2.address,
-        WETH.address,
-        swapFee,
-        feeReceiver,
-        balanceThreshold,
-        tokenA.address,
-        overrides
-    )
+    const router = await SaveYourPancakeRouter.deploy(WETH.address, swapFee, feeReceiver, balanceThreshold, tokenA.address, overrides)
 
     // event emitter for testing
     const routerEventEmitter = await RouterEventEmitter.deploy()
