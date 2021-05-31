@@ -24,7 +24,7 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     let balanceThreshold = expandTo18Decimals(10000)
     let ERC20 = await ethers.getContractFactory('ERC20')
     let WETH9 = await ethers.getContractFactory('WETH9')
-    let SaveYourPancakeRouter = await ethers.getContractFactory('TestingRouter')
+    let SaveYourPancakeRouter = await ethers.getContractFactory('SaveYourPancakeRouter')
     let PancakeFactory = await ethers.getContractFactory('PancakeFactory')
     let RouterEventEmitter = await ethers.getContractFactory('RouterEventEmitter')
 
@@ -36,10 +36,22 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
 
     // deploy V2
     const factoryV2 = await PancakeFactory.deploy(wallet.address)
-    console.log('INIT_CODE_PAIR_HASH:', await factoryV2.INIT_CODE_PAIR_HASH())
+    const initHash = await factoryV2.INIT_CODE_PAIR_HASH()
+    console.log('INIT_CODE_PAIR_HASH:', initHash)
 
     // deploy router
-    const router = await SaveYourPancakeRouter.deploy(WETH.address, swapFee, feeReceiver, balanceThreshold, tokenA.address, overrides)
+    const router = await SaveYourPancakeRouter.deploy(
+        WETH.address,
+        swapFee,
+        feeReceiver,
+        balanceThreshold,
+        tokenA.address,
+        factoryV2.address,
+        factoryV2.address,
+        initHash,
+        initHash,
+        overrides
+    )
 
     // event emitter for testing
     const routerEventEmitter = await RouterEventEmitter.deploy()

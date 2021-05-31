@@ -31,7 +31,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const weth = await deploy('SYARouter', {
         from: deployer,
         log: true,
-        contract: 'TestingRouter',
+        contract: 'SaveYourPancakeRouter',
         args: [WETH, swapFee, feeReceiver, balanceThreshold, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2],
     })
 }

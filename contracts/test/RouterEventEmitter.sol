@@ -1,6 +1,7 @@
 pragma solidity =0.6.6;
 
-import "../interfaces/IPancakeRouter01.sol";
+import "../interfaces/ISaveYourPancakeRouter.sol";
+import "hardhat/console.sol";
 
 contract RouterEventEmitter {
     event Amounts(uint256[] amounts);
@@ -9,6 +10,7 @@ contract RouterEventEmitter {
 
     function swapExactTokensForTokens(
         address router,
+        address factory,
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
@@ -18,7 +20,8 @@ contract RouterEventEmitter {
         (bool success, bytes memory returnData) =
             router.delegatecall(
                 abi.encodeWithSelector(
-                    IPancakeRouter01(router).swapExactTokensForTokens.selector,
+                    ISaveYourPancakeRouter(router).swapExactTokensForTokens.selector,
+                    factory,
                     amountIn,
                     amountOutMin,
                     path,
@@ -30,6 +33,7 @@ contract RouterEventEmitter {
         emit Amounts(abi.decode(returnData, (uint256[])));
     }
 
+    /*
     function swapTokensForExactTokens(
         address router,
         uint256 amountOut,
@@ -114,4 +118,5 @@ contract RouterEventEmitter {
         assert(success);
         emit Amounts(abi.decode(returnData, (uint256[])));
     }
+    */
 }

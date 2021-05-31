@@ -5,6 +5,7 @@ import 'solidity-coverage'
 import '@nomiclabs/hardhat-etherscan'
 import 'hardhat-dependency-compiler'
 import 'hardhat-typechain'
+import 'hardhat-tracer'
 
 require('dotenv').config()
 

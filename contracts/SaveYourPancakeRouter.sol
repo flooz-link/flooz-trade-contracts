@@ -8,17 +8,17 @@ import "./libraries/TransferHelper.sol";
 import "./libraries/PancakeLibrary.sol";
 import "./interfaces/IWETH.sol";
 
-contract TestingRouter is Ownable {
+contract SaveYourPancakeRouter is Ownable {
     using SafeMath for uint256;
     event SwapFeeUpdated(uint8 swapFee);
     event FeeReceiverUpdated(address feeReceiver);
 
     uint256 public constant FEE_DENOMINATOR = 10000;
-    bytes public immutable pancakeInitCodeV1; // ToDo change to internal after testing
-    bytes public immutable pancakeInitCodeV2; // ToDo change to internal after testing
-    address public immutable pancakeFactoryV1;
-    address public immutable pancakeFactoryV2;
     address public immutable WETH;
+    bytes internal pancakeInitCodeV1;
+    bytes internal pancakeInitCodeV2;
+    address public pancakeFactoryV1;
+    address public pancakeFactoryV2;
     IERC20 public saveYourAssetsToken;
     uint256 public balanceThreshold;
     address public feeReceiver;
@@ -84,7 +84,7 @@ contract TestingRouter is Ownable {
         (uint256 swapAmount, uint256 feeAmount) = _calculateFee(msg.value);
         amounts = _getAmountsOut(factory, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancakeRouter: INSUFFICIENT_OUTPUT_AMOUNT");
-        IWETH(WETH).deposit{value: amounts[0]}();
+        IWETH(WETH).deposit{value: amounts[0].add(feeAmount)}();
         assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), amounts[0]));
         assert(IWETH(WETH).transfer(feeReceiver, feeAmount));
         _swap(factory, amounts, path, to);
@@ -93,6 +93,7 @@ contract TestingRouter is Ownable {
     }
 
     function swapExactTokensForNativ(
+        address factory,
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
@@ -103,7 +104,7 @@ contract TestingRouter is Ownable {
         amounts = _getAmountsOut(factory, amountIn, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancakeRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
-        _swap(amounts, path, address(this));
+        _swap(factory, amounts, path, address(this));
         IWETH(WETH).withdraw(amounts[amounts.length - 1]);
 
         (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amounts[amounts.length - 1]);
@@ -170,6 +171,25 @@ contract TestingRouter is Ownable {
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
         TransferHelper.safeTransferFrom(path[0], msg.sender, feeReceiver, feeAmount);
         _swap(factory, amounts, path, to);
+    }
+
+    function swapExactTokensForNative(
+        address factory,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external ensure(deadline) returns (uint256[] memory amounts) {
+        require(path[path.length - 1] == WETH, "SaveYourPancake: INVALID_PATH");
+        amounts = _getAmountsOut(factory, amountIn, path);
+        require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancake: INSUFFICIENT_OUTPUT_AMOUNT");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
+        _swap(factory, amounts, path, address(this));
+        IWETH(WETH).withdraw(amounts[amounts.length - 1]);
+        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amounts[amounts.length - 1]);
+        TransferHelper.safeTransferETH(to, swapAmount);
+        TransferHelper.safeTransferETH(feeReceiver, feeAmount);
     }
 
     function _calculateFee(uint256 amount) internal view returns (uint256 swapAmount, uint256 feeAmount) {
