@@ -12,6 +12,7 @@ contract SaveYourPancakeRouter is Ownable {
     using SafeMath for uint256;
     event SwapFeeUpdated(uint8 swapFee);
     event FeeReceiverUpdated(address feeReceiver);
+    event BalanceThresholdUpdated(uint256 balanceThreshold);
 
     uint256 public constant FEE_DENOMINATOR = 10000;
     address public immutable WETH;
@@ -90,26 +91,6 @@ contract SaveYourPancakeRouter is Ownable {
         _swap(factory, amounts, path, to);
         // refund dust eth, if any
         if (msg.value > amounts[0].add(feeAmount)) TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0].add(feeAmount));
-    }
-
-    function swapExactTokensForNativ(
-        address factory,
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external ensure(deadline) returns (uint256[] memory amounts) {
-        require(path[path.length - 1] == WETH, "SaveYourPancakeRouter: INVALID_PATH");
-        amounts = _getAmountsOut(factory, amountIn, path);
-        require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancakeRouter: INSUFFICIENT_OUTPUT_AMOUNT");
-        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
-        _swap(factory, amounts, path, address(this));
-        IWETH(WETH).withdraw(amounts[amounts.length - 1]);
-
-        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amounts[amounts.length - 1]);
-        TransferHelper.safeTransferETH(to, swapAmount);
-        TransferHelper.safeTransferETH(feeReceiver, feeAmount);
     }
 
     // **** SWAP (supporting fee-on-transfer tokens) ****
@@ -192,8 +173,102 @@ contract SaveYourPancakeRouter is Ownable {
         TransferHelper.safeTransferETH(feeReceiver, feeAmount);
     }
 
+    function swapNativeForExactTokens(
+        address factory,
+        uint256 amountOut,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external payable ensure(deadline) returns (uint256[] memory amounts) {
+        require(path[0] == WETH, "SaveYourPancake: INVALID_PATH");
+        amounts = _getAmountsIn(factory, amountOut, path);
+        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amounts[0]);
+        require(swapAmount <= msg.value, "SaveYourPancake: EXCESSIVE_INPUT_AMOUNT");
+        IWETH(WETH).deposit{value: amounts[0]}();
+        assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), swapAmount));
+        assert(IWETH(WETH).transfer(feeReceiver, feeAmount));
+        _swap(factory, amounts, path, to);
+        // refund dust eth, if any
+        if (msg.value > swapAmount.add(feeAmount)) TransferHelper.safeTransferETH(msg.sender, msg.value - swapAmount);
+    }
+
+    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        address factory,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external ensure(deadline) returns (uint256[] memory amounts) {
+        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amountIn);
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), swapAmount);
+        TransferHelper.safeTransferFrom(path[0], msg.sender, feeReceiver, feeAmount);
+        uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(to);
+        _swapSupportingFeeOnTransferTokens(factory, path, to);
+        require(
+            IERC20(path[path.length - 1]).balanceOf(to).sub(balanceBefore) >= amountOutMin,
+            "SaveYourPancake: INSUFFICIENT_OUTPUT_AMOUNT"
+        );
+    }
+
+    function swapTokensForExactTokens(
+        address factory,
+        uint256 amountOut,
+        uint256 amountInMax,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external ensure(deadline) returns (uint256[] memory amounts) {
+        amounts = _getAmountsIn(factory, amountOut, path);
+        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amounts[0]);
+        require(swapAmount <= amountInMax, "SaveYourPancake: EXCESSIVE_INPUT_AMOUNT");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), swapAmount);
+        TransferHelper.safeTransferFrom(path[0], msg.sender, feeReceiver, feeAmount);
+        _swap(factory, amounts, path, to);
+    }
+
+    function swapTokensForExactNative(
+        address factory,
+        uint256 amountOut,
+        uint256 amountInMax,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external ensure(deadline) returns (uint256[] memory amounts) {
+        require(path[path.length - 1] == WETH, "SaveYourPancake: INVALID_PATH");
+        amounts = _getAmountsIn(factory, amountOut, path);
+        require(amounts[0] <= amountInMax, "SaveYourPancake: EXCESSIVE_INPUT_AMOUNT");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
+        _swap(factory, amounts, path, address(this));
+        IWETH(WETH).withdraw(amounts[amounts.length - 1]);
+        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amounts[amounts.length - 1]);
+        TransferHelper.safeTransferETH(to, swapAmount);
+        TransferHelper.safeTransferETH(feeReceiver, feeAmount);
+    }
+
+    function swapExactNativeForTokensSupportingFeeOnTransferTokens(
+        address factory,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external payable ensure(deadline) {
+        require(path[0] == WETH, "SaveYourPancake: INVALID_PATH");
+        uint256 amountIn = msg.value;
+        IWETH(WETH).deposit{value: amountIn}();
+        (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amountIn);
+        assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), swapAmount));
+        assert(IWETH(WETH).transfer(feeReceiver, feeAmount));
+        uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(to);
+        _swapSupportingFeeOnTransferTokens(factory, path, to);
+        require(
+            IERC20(path[path.length - 1]).balanceOf(to).sub(balanceBefore) >= amountOutMin,
+            "SaveYourPancake: INSUFFICIENT_OUTPUT_AMOUNT"
+        );
+    }
+
     function _calculateFee(uint256 amount) internal view returns (uint256 swapAmount, uint256 feeAmount) {
-        if (saveYourAssetsToken.balanceOf(msg.sender) > balanceThreshold) {
+        if (saveYourAssetsToken.balanceOf(msg.sender) >= balanceThreshold) {
             feeAmount = 0;
             swapAmount = amount;
         } else {
@@ -203,7 +278,7 @@ contract SaveYourPancakeRouter is Ownable {
     }
 
     function getUserFee(address user) public view returns (uint256) {
-        saveYourAssetsToken.balanceOf(user) > balanceThreshold ? 0 : swapFee;
+        saveYourAssetsToken.balanceOf(user) >= balanceThreshold ? 0 : swapFee;
     }
 
     function updateSwapFee(uint8 newSwapFee) external onlyOwner {
@@ -214,6 +289,11 @@ contract SaveYourPancakeRouter is Ownable {
     function updateFeeReceiver(address newFeeReceiver) external onlyOwner {
         feeReceiver = newFeeReceiver;
         emit FeeReceiverUpdated(newFeeReceiver);
+    }
+
+    function updateBalanceThreshold(uint256 newBalanceThreshold) external onlyOwner {
+        balanceThreshold = newBalanceThreshold;
+        emit BalanceThresholdUpdated(balanceThreshold);
     }
 
     // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset

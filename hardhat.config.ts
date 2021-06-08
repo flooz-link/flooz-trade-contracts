@@ -32,7 +32,7 @@ module.exports = {
             live: true,
             url: 'https://bsc-dataseed1.defibit.io/',
             chainId: 56,
-            gasPrice: 30000000000,
+            gasPrice: 5000000000,
             accounts: [process.env.PRIVATE_KEY_MAINNET],
         },
         localhost: {

@@ -155,17 +155,19 @@ describe('SaveYourPancakeRouter', () => {
             it('happy path', async () => {
                 const WETHPairToken0 = await WETHPair.token0()
                 await expect(
-                    router.connect(owner).swapExactNativeForTokens(
-                        factory.address,
-                        0,
-                        [WETH.address, WETHPartner.address],
-                        wallet.address,
-                        ethers.constants.MaxUint256,
-                        {
-                            ...overrides,
-                            value: amountIn,
-                        }
-                    )
+                    router
+                        .connect(owner)
+                        .swapExactNativeForTokens(
+                            factory.address,
+                            0,
+                            [WETH.address, WETHPartner.address],
+                            wallet.address,
+                            ethers.constants.MaxUint256,
+                            {
+                                ...overrides,
+                                value: amountIn,
+                            }
+                        )
                 )
                     .to.emit(WETH, 'Transfer')
                     .withArgs(router.address, WETHPair.address, swapAmount)
@@ -218,7 +220,7 @@ describe('SaveYourPancakeRouter', () => {
 
                 const swapAmount = expandTo18Decimals(1)
                 const tx = await router.swapExactNativeForTokens(
-                  factory.address,
+                    factory.address,
                     0,
                     [WETH.address, WETHPartner.address],
                     wallet.address,

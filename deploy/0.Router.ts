@@ -15,6 +15,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     if (network.name == 'mainnet') {
         WETH = process.env.MAINNET_WETH
         syaToken = process.env.MAINNET_SYA
+        factoryV1 = '0xBCfCcbde45cE874adCB698cC183deBcF17952812'
+        factoryV2 = '0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73'
+        initCodeV1 = '0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66'
+        initCodeV2 = '0x00fb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5'
     } else {
         WETH = process.env.TESTNET_WETH
         syaToken = process.env.TESTNET_SYA
@@ -25,7 +29,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     }
 
     let swapFee = 10 // 0.1 %
-    let feeReceiver = '0xB282ba7E94589DC3bc980B7E5759Dcb791231393'
+    let feeReceiver = '0xF7b95Da46b65683B44b11fef24C8BC7739da04Ac'
     let balanceThreshold = expandTo9Decimals(10000)
 
     const weth = await deploy('SYARouter', {

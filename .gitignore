@@ -18,3 +18,4 @@ package-lock.json
 typechain/
 data/
 contracts/.flattened
+.DS_Store

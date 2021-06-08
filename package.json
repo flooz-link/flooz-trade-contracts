@@ -10,7 +10,7 @@
     "lint:ts": "eslint --max-warnings 0 .",
     "prettier": "prettier 'contracts/**/*.sol' -w && prettier '**/*.js' -w && prettier '**/*.ts' -w",
     "coverage": "hardhat compile && hardhat coverage",
-    "deploy:testnet": "hardhat compile && hardhat deploy --network testnet && npx hardhat etherscan-verify --network testnet",
+    "deploy:testnet": "hardhat compile && hardhat deploy --network testnet", 
     "deploy:mainnet": "hardhat compile && hardhat deploy --network mainnet",
     "deploy:localhost": "hardhat compile && hardhat deploy --network localhost",
     "deploy:hardhat": "hardhat compile && hardhat deploy --network hardhat",
