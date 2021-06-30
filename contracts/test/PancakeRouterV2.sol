@@ -83,7 +83,6 @@ interface IPancakeRouter01 {
             uint256 liquidity
         );
 
-
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -158,7 +157,6 @@ interface IPancakeRouter01 {
 pragma solidity >=0.6.2;
 
 interface IPancakeRouter02 is IPancakeRouter01 {
-
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
         uint256 amountIn,
         uint256 amountOutMin,

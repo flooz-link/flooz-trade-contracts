@@ -12,6 +12,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log('Using Deployer account: ', deployer)
 
     let WETH, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2, pancakeRouterV2, revenueReceiver
+
     if (network.name == 'mainnet') {
         WETH = process.env.MAINNET_WETH
         syaToken = process.env.MAINNET_SYA
@@ -33,16 +34,17 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     }
 
     let swapFee = 50 // 0.5 %
-    let balanceThreshold = 2 ** 256 - 1 //Max amount for now
+    let buybackRate = 5000 // 50%
+    let balanceThreshold = expandTo9Decimals(50000000000) //Max amount for now
 
     const feeReceiver = await deploy('FeeReceiver', {
         from: deployer,
         log: true,
         contract: 'FeeReceiver',
-        args: [pancakeRouterV2, syaToken, WETH, revenueReceiver],
+        args: [pancakeRouterV2, syaToken, WETH, revenueReceiver, buybackRate],
     })
 
-    const weth = await deploy('SYARouter', {
+    const syaRouter = await deploy('SYARouter', {
         from: deployer,
         log: true,
         contract: 'SaveYourPancakeRouter',
@@ -51,4 +53,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 }
 
 export default func
-func.tags = ['mocks']
+func.tags = ['syp']

@@ -70,7 +70,6 @@ describe.only('FeeReceiver', () => {
             await expect(feeReceiver.executeBuyback())
                 .to.emit(feeReceiver, 'BuybackExecuted')
                 .withArgs(expandTo18Decimals(5), expandTo18Decimals(5))
-
         })
     })
 
