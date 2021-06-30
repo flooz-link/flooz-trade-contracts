@@ -4,11 +4,12 @@ pragma solidity =0.6.6;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./libraries/TransferHelper.sol";
 import "./libraries/PancakeLibrary.sol";
 import "./interfaces/IWETH.sol";
 
-contract SaveYourPancakeRouter is Ownable {
+contract SaveYourPancakeRouter is Ownable, Pausable {
     using SafeMath for uint256;
     event SwapFeeUpdated(uint8 swapFee);
     event FeeReceiverUpdated(address feeReceiver);
@@ -80,7 +81,7 @@ contract SaveYourPancakeRouter is Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external payable ensure(deadline) returns (uint256[] memory amounts) {
+    ) external payable whenNotPaused() ensure(deadline) returns (uint256[] memory amounts) {
         require(path[0] == WETH, "SaveYourPancakeRouter: INVALID_PATH");
         (uint256 swapAmount, uint256 feeAmount) = _calculateFee(msg.value);
         amounts = _getAmountsOut(factory, swapAmount, path);
@@ -126,7 +127,7 @@ contract SaveYourPancakeRouter is Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external ensure(deadline) {
+    ) external whenNotPaused() ensure(deadline) {
         require(path[path.length - 1] == WETH, "SaveYourPancake: BNB has to be the last path item");
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amountIn);
         _swapSupportingFeeOnTransferTokens(factory, path, address(this));
@@ -145,7 +146,7 @@ contract SaveYourPancakeRouter is Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external ensure(deadline) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() ensure(deadline) returns (uint256[] memory amounts) {
         (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amountIn);
         amounts = _getAmountsOut(factory, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancake: INSUFFICIENT_OUTPUT_AMOUNT");
@@ -161,7 +162,7 @@ contract SaveYourPancakeRouter is Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external ensure(deadline) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() ensure(deadline) returns (uint256[] memory amounts) {
         require(path[path.length - 1] == WETH, "SaveYourPancake: INVALID_PATH");
         amounts = _getAmountsOut(factory, amountIn, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancake: INSUFFICIENT_OUTPUT_AMOUNT");
@@ -179,7 +180,7 @@ contract SaveYourPancakeRouter is Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external payable ensure(deadline) returns (uint256[] memory amounts) {
+    ) external payable whenNotPaused() ensure(deadline) returns (uint256[] memory amounts) {
         require(path[0] == WETH, "SaveYourPancake: INVALID_PATH");
         amounts = _getAmountsIn(factory, amountOut, path);
         (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amounts[0]);
@@ -199,7 +200,7 @@ contract SaveYourPancakeRouter is Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external ensure(deadline) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() ensure(deadline) returns (uint256[] memory amounts) {
         (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amountIn);
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), swapAmount);
         TransferHelper.safeTransferFrom(path[0], msg.sender, feeReceiver, feeAmount);
@@ -218,7 +219,7 @@ contract SaveYourPancakeRouter is Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external ensure(deadline) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() ensure(deadline) returns (uint256[] memory amounts) {
         amounts = _getAmountsIn(factory, amountOut, path);
         (uint256 swapAmount, uint256 feeAmount) = _calculateFee(amounts[0]);
         require(swapAmount <= amountInMax, "SaveYourPancake: EXCESSIVE_INPUT_AMOUNT");
@@ -234,7 +235,7 @@ contract SaveYourPancakeRouter is Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external ensure(deadline) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() ensure(deadline) returns (uint256[] memory amounts) {
         require(path[path.length - 1] == WETH, "SaveYourPancake: INVALID_PATH");
         amounts = _getAmountsIn(factory, amountOut, path);
         require(amounts[0] <= amountInMax, "SaveYourPancake: EXCESSIVE_INPUT_AMOUNT");
@@ -252,7 +253,7 @@ contract SaveYourPancakeRouter is Ownable {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external payable ensure(deadline) {
+    ) external payable whenNotPaused() ensure(deadline) {
         require(path[0] == WETH, "SaveYourPancake: INVALID_PATH");
         uint256 amountIn = msg.value;
         IWETH(WETH).deposit{value: amountIn}();
@@ -294,6 +295,25 @@ contract SaveYourPancakeRouter is Ownable {
     function updateBalanceThreshold(uint256 newBalanceThreshold) external onlyOwner {
         balanceThreshold = newBalanceThreshold;
         emit BalanceThresholdUpdated(balanceThreshold);
+    }
+
+    /**
+     * @dev Withdraw BNB that somehow ended up in the contract.
+     */
+    function withdrawBnb() external onlyOwner {
+        msg.sender.transfer(address(this).balance);
+    }
+
+    /**
+     * @dev Withdraw any erc20 compliant tokens that
+     * somehow ended up in the contract.
+     */
+    function withdrawErc20Token(
+        address token,
+        address to,
+        uint256 amount
+    ) external onlyOwner {
+        IERC20(token).transfer(to, amount);
     }
 
     // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
@@ -384,5 +404,13 @@ contract SaveYourPancakeRouter is Ownable {
                 )
             )
         );
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }

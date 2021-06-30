@@ -13,9 +13,9 @@ module.exports = {
     defaultNetwork: 'hardhat',
     networks: {
         hardhat: {
+            allowUnlimitedContractSize: true,
             live: false,
             tags: ['local'],
-            allowUnlimitedContractSize: true,
             accounts: {
                 accountsBalance: '100000000000000000000000',
             },
@@ -57,11 +57,18 @@ module.exports = {
         compilers: [
             {
                 version: '0.6.6',
+                settings: {
+                    optimizer: {
+                      enabled: true,
+                      runs: 200
+                    }
+                  }
             },
             {
                 version: '0.5.16',
             },
         ],
+        
     },
     dependencyCompiler: {
         paths: ['@pancakeswap-libs/pancake-swap-core/contracts/PancakeFactory.sol'],
