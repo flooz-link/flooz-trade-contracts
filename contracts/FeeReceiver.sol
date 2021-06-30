@@ -18,7 +18,7 @@ contract FeeReceiver is Pausable, Ownable {
     event BuybackExecuted(uint256 amountBuyback, uint256 amountRevenue);
 
     uint256 public constant FEE_DENOMINATOR = 10000;
-    address public constant ZERO_ADDRESS = address(0);
+    address internal constant ZERO_ADDRESS = address(0x000000000000000000000000000000000000dEaD);
     IPancakeRouter02 public pancakeRouter;
     address payable public revenueReceiver;
     address public SYA;
@@ -38,6 +38,7 @@ contract FeeReceiver is Pausable, Ownable {
         WBNB = _WBNB;
         revenueReceiver = _revenueReceiver;
         buybackRate = _buybackRate;
+        routerWhitelist[address(pancakeRouter)] = true;
     }
 
     /**
@@ -53,7 +54,7 @@ contract FeeReceiver is Pausable, Ownable {
         uint256 amountBuyback = balance.mul(buybackRate).div(FEE_DENOMINATOR);
         uint256 amountRevenue = balance.sub(amountBuyback);
 
-        pancakeRouter.swapExactETHForTokensSupportingFeeOnTransferTokens{value: amountBuyback}(0, path, address(this), block.timestamp);
+        pancakeRouter.swapExactETHForTokensSupportingFeeOnTransferTokens{value: amountBuyback}(0, path, ZERO_ADDRESS, block.timestamp);
         TransferHelper.safeTransferETH(revenueReceiver, amountRevenue);
         emit BuybackExecuted(amountBuyback, amountRevenue);
     }
@@ -74,9 +75,9 @@ contract FeeReceiver is Pausable, Ownable {
         uint256 balance = _token.balanceOf(address(this));
         TransferHelper.safeApprove(address(_token), address(pancakeRouter), balance);
         if (_fee) {
-            IPancakeRouter02(_router).swapExactTokensForETHSupportingFeeOnTransferTokens(balance, 0, path, ZERO_ADDRESS, block.timestamp);
+            IPancakeRouter02(_router).swapExactTokensForETHSupportingFeeOnTransferTokens(balance, 0, path, address(this), block.timestamp);
         } else {
-            IPancakeRouter02(_router).swapExactTokensForETH(balance, 0, path, ZERO_ADDRESS, block.timestamp);
+            IPancakeRouter02(_router).swapExactTokensForETH(balance, 0, path, address(this), block.timestamp);
         }
     }
 
