@@ -35,7 +35,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     let swapFee = 50 // 0.5 %
     let buybackRate = 5000 // 50%
-    let balanceThreshold = expandTo9Decimals(50000000000) //50b SYA
+    let balanceThreshold = expandTo9Decimals(5000000000) //5b SYA
 
     const feeReceiver = await deploy('FeeReceiver', {
         from: deployer,
@@ -51,8 +51,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         args: [WETH, swapFee, feeReceiver.address, balanceThreshold, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2],
     })
 
-    // await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', owner)
-    // await execute('SYARouter', { from: deployer, log: true }, 'transferOwnership', owner)
+    await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', owner)
+    await execute('SYARouter', { from: deployer, log: true }, 'transferOwnership', owner)
 }
 
 export default func
