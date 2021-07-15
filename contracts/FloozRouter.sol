@@ -54,8 +54,7 @@ contract FloozRouter is Ownable, Pausable {
         }
     }
 
-    receive() external payable {
-    }
+    receive() external payable {}
 
     function swapExactETHForTokens(
         address router,
@@ -111,7 +110,6 @@ contract FloozRouter is Ownable, Pausable {
         address to,
         address referee
     ) external whenNotPaused isValidReferral(referee) isValidRouter(router) returns (uint256[] memory amounts) {
-
         TransferHelper.safeTransferFrom(path[0], msg.sender, address(this), amountIn);
         TransferHelper.safeApprove(path[0], router, amountIn);
         amounts = IPancakeRouter02(router).swapExactTokensForETH(amountIn, amountOutMin, path, address(this), block.timestamp);
