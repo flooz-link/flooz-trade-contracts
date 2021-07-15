@@ -1,5 +1,6 @@
 pragma solidity >=0.5.0;
-import "@openzeppelin/contracts/math/SafeMath.sol";
+//SPDX-License-Identifier: Unlicense
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 interface IPancakePair {
     event Approval(address indexed owner, address indexed spender, uint256 value);

@@ -28,7 +28,7 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     let ERC20 = await ethers.getContractFactory('ERC20')
     let SYA = await ethers.getContractFactory('SYAMOCK')
     let WETH9 = await ethers.getContractFactory('WETH9')
-    let SaveYourPancakeRouter = await ethers.getContractFactory('SaveYourPancakeRouter')
+    let FloozRouter = await ethers.getContractFactory('FloozRouter')
     let PancakeFactory = await ethers.getContractFactory('PancakeFactory')
     let RouterEventEmitter = await ethers.getContractFactory('RouterEventEmitter')
     let FeeReceiver = await ethers.getContractFactory('FeeReceiver')
@@ -52,18 +52,9 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     const feeReceiver = await FeeReceiver.deploy(pancakeRouterV2.address, syaToken.address, WETH.address, revenueReceiver, 5000)
 
     // deploy SYP router
-    const router = await SaveYourPancakeRouter.deploy(
-        WETH.address,
-        swapFee,
-        feeReceiver.address,
-        balanceThreshold,
-        syaToken.address,
-        factoryV2.address,
-        factoryV2.address,
-        initHash,
-        initHash,
-        overrides
-    )
+    const router = await FloozRouter.deploy(WETH.address, swapFee, feeReceiver.address, balanceThreshold, syaToken.address, [
+        pancakeRouterV2.address,
+    ])
 
     // event emitter for testing
     const routerEventEmitter = await RouterEventEmitter.deploy()

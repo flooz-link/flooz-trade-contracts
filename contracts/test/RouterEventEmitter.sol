@@ -17,18 +17,17 @@ contract RouterEventEmitter {
         address to,
         uint256 deadline
     ) external {
-        (bool success, bytes memory returnData) =
-            router.delegatecall(
-                abi.encodeWithSelector(
-                    ISaveYourPancakeRouter(router).swapExactTokensForTokens.selector,
-                    factory,
-                    amountIn,
-                    amountOutMin,
-                    path,
-                    to,
-                    deadline
-                )
-            );
+        (bool success, bytes memory returnData) = router.delegatecall(
+            abi.encodeWithSelector(
+                ISaveYourPancakeRouter(router).swapExactTokensForTokens.selector,
+                factory,
+                amountIn,
+                amountOutMin,
+                path,
+                to,
+                deadline
+            )
+        );
         assert(success);
         emit Amounts(abi.decode(returnData, (uint256[])));
     }

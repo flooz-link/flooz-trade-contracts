@@ -1,5 +1,7 @@
 pragma solidity >=0.5.0;
 
+//SPDX-License-Identifier: Unlicense
+
 interface IWETH {
     function deposit() external payable;
 

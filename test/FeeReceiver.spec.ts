@@ -12,7 +12,7 @@ const overrides = {
     gasLimit: 9999999,
 }
 
-describe.only('FeeReceiver', () => {
+describe('FeeReceiver', () => {
     const [owner, wallet, revenueReceiver] = waffle.provider.getWallets()
     const loadFixture = createFixtureLoader([owner, revenueReceiver])
 

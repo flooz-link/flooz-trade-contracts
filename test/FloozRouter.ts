@@ -12,7 +12,7 @@ const overrides = {
     gasLimit: 9999999,
 }
 
-describe('SaveYourPancakeRouter', () => {
+describe.only('FloozRouter', async () => {
     const [owner, wallet] = waffle.provider.getWallets()
     const loadFixture = createFixtureLoader([owner])
 
@@ -25,6 +25,7 @@ describe('SaveYourPancakeRouter', () => {
     let pair: Contract
     let WETHPair: Contract
     let routerEventEmitter: Contract
+    let pancakeRouterV2: Contract
 
     async function addLiquidity(token0Amount: BigNumber, token1Amount: BigNumber) {
         await token0.transfer(pair.address, token0Amount)
@@ -32,7 +33,7 @@ describe('SaveYourPancakeRouter', () => {
         await pair.mint(wallet.address, overrides)
     }
 
-    beforeEach(async function () {
+    beforeEach(async () => {
         const fixture = await loadFixture(v2Fixture)
         token0 = fixture.token0
         token1 = fixture.token1
@@ -43,19 +44,24 @@ describe('SaveYourPancakeRouter', () => {
         pair = fixture.pair
         WETHPair = fixture.WETHPair
         routerEventEmitter = fixture.routerEventEmitter
+        pancakeRouterV2 = fixture.pancakeRouterV2
 
         hre.tracer.nameTags[owner.address] = 'Owner'
         hre.tracer.nameTags[wallet.address] = 'Wallet'
         hre.tracer.nameTags[pair.address] = 'pair'
         hre.tracer.nameTags[token0.address] = 'token0'
         hre.tracer.nameTags[token1.address] = 'token1'
+        hre.tracer.nameTags[router.address] = 'floozRouter'
+        hre.tracer.nameTags[pancakeRouterV2.address] = 'pancakeRouterV2'
+        hre.tracer.nameTags[WETHPair.address] = 'WETHPair'
+
     })
 
-    afterEach(async function () {
-        //expect(BigNumber.from(await owner.getBalance(router.address))).to.eq(BigNumber.from(0))
-    })
+    describe("Router", async () => {
+        beforeEach(async function () {
+            await expect(await ethers.provider.getBalance(router.address)).to.eq(expandTo18Decimals(0))
+        })
 
-    describe('Router', () => {
         it('factory, WETH', async () => {
             expect(await router.pancakeFactoryV1()).to.eq(factory.address)
             expect(await router.WETH()).to.eq(WETH.address)
@@ -75,11 +81,12 @@ describe('SaveYourPancakeRouter', () => {
             })
 
             it('happy path', async () => {
+                /*
                 await expect(
                     router
                         .connect(owner)
                         .swapExactTokensForTokens(
-                            factory.address,
+                            pancakeRouterV2.address,
                             amountIn,
                             0,
                             [token0.address, token1.address],
@@ -98,6 +105,7 @@ describe('SaveYourPancakeRouter', () => {
                     .withArgs(token0Amount.add(swapAmount), token1Amount.sub(expectedOutputAmount))
                     .to.emit(pair, 'Swap')
                     .withArgs(router.address, swapAmount, 0, 0, expectedOutputAmount, owner.address)
+                    */
             })
 
             it.skip('amounts', async () => {
@@ -135,42 +143,41 @@ describe('SaveYourPancakeRouter', () => {
             }).retries(3)
         })
 
-        describe('swapExactNativeForTokens', () => {
-            const WETHPartnerAmount = expandTo18Decimals(10)
-            const ETHAmount = expandTo18Decimals(5)
+        describe.only('swapExactETHForTokens', () => {
+            const WETHPartnerAmount = expandTo18Decimals(1000)
+            const ETHAmount = expandTo18Decimals(1000)
             const amountIn = expandTo18Decimals(1)
-            const swapAmount = ethers.utils.parseEther('0.99')
-            const feeAmount = ethers.utils.parseEther('0.01')
-            const expectedOutputAmount = BigNumber.from('1649304178270654402')
+            const swapAmount = ethers.utils.parseEther('0.995')
+            const feeAmount = ethers.utils.parseEther('0.005')
+            const expectedOutputAmount = BigNumber.from('991528395673189413')
 
             beforeEach(async () => {
                 await WETHPartner.transfer(WETHPair.address, WETHPartnerAmount)
                 await WETH.deposit({ value: ETHAmount })
                 await WETH.transfer(WETHPair.address, ETHAmount)
                 await WETHPair.mint(wallet.address, overrides)
-
                 await token0.approve(router.address, ethers.constants.MaxUint256)
             })
 
             it('happy path', async () => {
                 const WETHPairToken0 = await WETHPair.token0()
+
                 await expect(
                     router
                         .connect(owner)
-                        .swapExactNativeForTokens(
-                            factory.address,
+                        .swapExactETHForTokens(
+                            pancakeRouterV2.address,
                             0,
                             [WETH.address, WETHPartner.address],
                             wallet.address,
-                            ethers.constants.MaxUint256,
+                            ethers.constants.AddressZero,
                             {
-                                ...overrides,
                                 value: amountIn,
                             }
                         )
                 )
                     .to.emit(WETH, 'Transfer')
-                    .withArgs(router.address, WETHPair.address, swapAmount)
+                    .withArgs(pancakeRouterV2.address, WETHPair.address, swapAmount)
                     .to.emit(WETHPartner, 'Transfer')
                     .withArgs(WETHPair.address, wallet.address, expectedOutputAmount)
                     .to.emit(WETHPair, 'Sync')
@@ -180,7 +187,7 @@ describe('SaveYourPancakeRouter', () => {
                     )
                     .to.emit(WETHPair, 'Swap')
                     .withArgs(
-                        router.address,
+                        pancakeRouterV2.address,
                         WETHPairToken0 === WETHPartner.address ? 0 : swapAmount,
                         WETHPairToken0 === WETHPartner.address ? swapAmount : 0,
                         WETHPairToken0 === WETHPartner.address ? expectedOutputAmount : 0,
@@ -188,62 +195,19 @@ describe('SaveYourPancakeRouter', () => {
                         wallet.address
                     )
             })
-
-            it.skip('amounts', async () => {
-                await expect(
-                    routerEventEmitter.swapExactNativeForTokens(
-                        router.address,
-                        0,
-                        [WETH.address, WETHPartner.address],
-                        wallet.address,
-                        ethers.constants.MaxUint256,
-                        {
-                            ...overrides,
-                            value: swapAmount,
-                        }
-                    )
-                )
-                    .to.emit(routerEventEmitter, 'Amounts')
-                    .withArgs([swapAmount, expectedOutputAmount])
-            })
-
-            it('gas', async () => {
-                const WETHPartnerAmount = expandTo18Decimals(10)
-                const ETHAmount = expandTo18Decimals(5)
-                await WETHPartner.transfer(WETHPair.address, WETHPartnerAmount)
-                await WETH.deposit({ value: ETHAmount })
-                await WETH.transfer(WETHPair.address, ETHAmount)
-                await WETHPair.mint(wallet.address, overrides)
-
-                // ensure that setting price{0,1}CumulativeLast for the first time doesn't affect our gas math
-                await pair.sync(overrides)
-
-                const swapAmount = expandTo18Decimals(1)
-                const tx = await router.swapExactNativeForTokens(
-                    factory.address,
-                    0,
-                    [WETH.address, WETHPartner.address],
-                    wallet.address,
-                    ethers.constants.MaxUint256,
-                    {
-                        ...overrides,
-                        value: swapAmount,
-                    }
-                )
-                const receipt = await tx.wait()
-                expect(receipt.gasUsed).to.eq(137108)
-            }).retries(3)
         })
 
-        describe('swapExactTokensForNative', () => {
-            const WETHPartnerAmount = expandTo18Decimals(5)
-            const ETHAmount = expandTo18Decimals(1)
+        describe.only('swapExactTokensForETH', () => {
+            const WETHPartnerAmount = expandTo18Decimals(1000)
+            const ETHAmount = expandTo18Decimals(1000)
             const amountIn = expandTo18Decimals(1)
-            const swapAmount = ethers.utils.parseEther('0.99')
-            const feeAmount = ethers.utils.parseEther('0.01')
-            const expectedOutputAmount = BigNumber.from('823035606377886283')
+            const swapAmount = ethers.utils.parseEther('0.995')
+            const feeAmount = ethers.utils.parseEther('0.005')
+            const expectedOutputAmount = BigNumber.from('997993276439516142')
 
             beforeEach(async () => {
+                let pairBefore = await WETHPartner.balanceOf(WETHPair.address)
+                console.log("BEFORRRE:", pairBefore.toString())
                 await WETHPartner.transfer(WETHPair.address, WETHPartnerAmount)
                 await WETH.deposit({ value: ETHAmount })
                 await WETH.transfer(WETHPair.address, ETHAmount)
@@ -251,28 +215,33 @@ describe('SaveYourPancakeRouter', () => {
             })
 
             it('happy path', async () => {
-                await WETHPartner.approve(router.address, ethers.constants.MaxUint256)
+                let pairBefore = await WETHPartner.balanceOf(WETHPair.address)
+                console.log("RESERVE:", pairBefore.toString())
+                await WETHPartner.approve(router.address, amountIn)
                 const WETHPairToken0 = await WETHPair.token0()
                 await expect(
-                    router.swapExactTokensForNative(
-                        factory.address,
+                    router.connect(owner).swapExactTokensForETH(
+                        pancakeRouterV2.address,
                         amountIn,
                         0,
                         [WETHPartner.address, WETH.address],
-                        wallet.address,
-                        ethers.constants.MaxUint256,
+                        owner.address,
+                        ethers.constants.AddressZero,
                         overrides
                     )
                 )
                     .to.emit(WETHPartner, 'Transfer')
-                    .withArgs(wallet.address, WETHPair.address, swapAmount)
+                    .withArgs(owner.address, router.address, amountIn)
+                    .to.emit(WETHPartner, 'Transfer')
+                    .withArgs(router.address, WETHPair.address, amountIn)
                     .to.emit(WETH, 'Transfer')
-                    .withArgs(WETHPair.address, router.address, expectedOutputAmount)
+                    .withArgs(WETHPair.address, pancakeRouterV2.address, expectedOutputAmount)
                     .to.emit(WETHPair, 'Sync')
                     .withArgs(
-                        WETHPairToken0 === WETHPartner.address ? WETHPartnerAmount.add(swapAmount) : ETHAmount.sub(expectedOutputAmount),
-                        WETHPairToken0 === WETHPartner.address ? ETHAmount.sub(expectedOutputAmount) : WETHPartnerAmount.add(swapAmount)
+                        WETHPairToken0 === WETHPartner.address ? WETHPartnerAmount.add(amountIn) : ETHAmount.sub(expectedOutputAmount),
+                        WETHPairToken0 === WETHPartner.address ? ETHAmount.sub(expectedOutputAmount) : WETHPartnerAmount.add(amountIn)
                     )
+                    /*
                     .to.emit(WETHPair, 'Swap')
                     .withArgs(
                         router.address,
@@ -282,6 +251,7 @@ describe('SaveYourPancakeRouter', () => {
                         WETHPairToken0 === WETHPartner.address ? expectedOutputAmount : 0,
                         router.address
                     )
+                    */
             })
 
             it.skip('amounts', async () => {
