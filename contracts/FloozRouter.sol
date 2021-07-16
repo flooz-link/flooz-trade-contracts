@@ -81,10 +81,10 @@ contract FloozRouter is Ownable, Pausable {
         address[] calldata path,
         address referee
     ) external payable whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
-        require(path[0] == WETH, "SaveYourPancakeRouter: INVALID_PATH");
+        require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee != address(0));
         amounts = _getAmountsOut(factory, swapAmount, path);
-        require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancakeRouter: INSUFFICIENT_OUTPUT_AMOUNT");
+        require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         IWETH(WETH).deposit{value: swapAmount}();
         assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), amounts[0]));
         _swap(factory, amounts, path, msg.sender);

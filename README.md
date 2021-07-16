@@ -1,4 +1,4 @@
-# SaveYourPancake Contracts
+# Flooz.trade Contracts
 
 
 ## Getting started
@@ -13,7 +13,7 @@ git clone git@bitbucket.org:Lamine-23/save-your-pancake-contracts.git
 Move into the save-your-pancake working directory
 
 ```sh
-cd save-your-pancake-contracts/
+cd flooz-trade-contracts/
 ```
 
 Install dependencies

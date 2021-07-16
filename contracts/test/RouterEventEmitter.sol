@@ -1,6 +1,6 @@
 pragma solidity =0.6.6;
 
-import "../interfaces/ISaveYourPancakeRouter.sol";
+import "../interfaces/IFloozRouter.sol";
 import "hardhat/console.sol";
 
 contract RouterEventEmitter {
@@ -19,7 +19,7 @@ contract RouterEventEmitter {
     ) external {
         (bool success, bytes memory returnData) = router.delegatecall(
             abi.encodeWithSelector(
-                ISaveYourPancakeRouter(router).swapExactTokensForTokens.selector,
+                IFloozRouter(router).swapExactTokensForTokens.selector,
                 factory,
                 amountIn,
                 amountOutMin,

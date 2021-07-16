@@ -47,7 +47,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const syaRouter = await deploy('SYARouter', {
         from: deployer,
         log: true,
-        contract: 'SaveYourPancakeRouter',
+        contract: 'FloozRouter',
         args: [WETH, swapFee, feeReceiver.address, balanceThreshold, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2],
     })
 
