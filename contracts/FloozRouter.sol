@@ -1,38 +1,35 @@
-pragma solidity ^0.8.0;
-//SPDX-License-Identifier: Unlicense
+pragma solidity =0.6.6;
 
+// SPDX-License-Identifier: UNLICENSED
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./libraries/TransferHelper.sol";
-import "./interfaces/IWETH.sol";
+import "./libraries/PancakeLibrary.sol";
 import "./interfaces/IReferrals.sol";
-import "./interfaces/IPancakeRouter02.sol";
-import "hardhat/console.sol";
+import "./interfaces/IWETH.sol";
 
 contract FloozRouter is Ownable, Pausable {
     using SafeMath for uint256;
     event SwapFeeUpdated(uint8 swapFee);
     event FeeReceiverUpdated(address feeReceiver);
     event BalanceThresholdUpdated(uint256 balanceThreshold);
+    event ReferralRewardPaid(address from, address to, address token, uint256 amount);
 
     uint256 public constant FEE_DENOMINATOR = 10000;
     address public immutable WETH;
+    bytes internal pancakeInitCodeV1;
+    bytes internal pancakeInitCodeV2;
+    address public pancakeFactoryV1;
+    address public pancakeFactoryV2;
     IERC20 public saveYourAssetsToken;
     uint256 public balanceThreshold;
     address public feeReceiver;
     uint8 public swapFee;
 
-    mapping(address => bool) public routerWhitelist;
-
-    modifier isValidReferral(address referee) {
-        require(referee != msg.sender, "FloozRouter: SELF_REFERRAL");
-        _;
-    }
-
-    modifier isValidRouter(address router) {
-        require(routerWhitelist[router], "FloozRouter: INVALID_ROUTER");
+    modifier isValidFactory(address factory) {
+        require(factory == pancakeFactoryV1 || factory == pancakeFactoryV2, "FloozRouter: invalid factory");
         _;
     }
 
@@ -42,186 +39,239 @@ contract FloozRouter is Ownable, Pausable {
         address _feeReceiver,
         uint256 _balanceThreshold,
         IERC20 _saveYourAssetsToken,
-        address[] memory _routerWhitelist
-    ) {
+        address _pancakeFactoryV1,
+        address _pancakeFactoryV2,
+        bytes memory _pancakeInitCodeV1,
+        bytes memory _pancakeInitCodeV2
+    ) public {
         WETH = _WETH;
         swapFee = _swapFee;
         feeReceiver = _feeReceiver;
         saveYourAssetsToken = _saveYourAssetsToken;
         balanceThreshold = _balanceThreshold;
-        for (uint256 i = 0; i < _routerWhitelist.length; i++) {
-            routerWhitelist[_routerWhitelist[i]] = true;
-        }
+        pancakeFactoryV1 = _pancakeFactoryV1;
+        pancakeFactoryV2 = _pancakeFactoryV2;
+        pancakeInitCodeV1 = _pancakeInitCodeV1;
+        pancakeInitCodeV2 = _pancakeInitCodeV2;
     }
 
     receive() external payable {}
 
+    // **** SWAP ****
+    // requires the initial amount to have already been sent to the first pair
+    function _swap(
+        address factory,
+        uint256[] memory amounts,
+        address[] memory path,
+        address _to
+    ) internal {
+        for (uint256 i; i < path.length - 1; i++) {
+            (address input, address output) = (path[i], path[i + 1]);
+            (address token0, ) = PancakeLibrary.sortTokens(input, output);
+            uint256 amountOut = amounts[i + 1];
+            (uint256 amount0Out, uint256 amount1Out) = input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
+            address to = i < path.length - 2 ? _pairFor(factory, output, path[i + 2]) : _to;
+            IPancakePair(_pairFor(factory, input, output)).swap(amount0Out, amount1Out, to, new bytes(0));
+        }
+    }
+
     function swapExactETHForTokens(
-        address router,
+        address factory,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referee
-    ) external payable whenNotPaused isValidReferral(referee) isValidRouter(router) returns (uint256[] memory amounts) {
+    ) external payable whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+        require(path[0] == WETH, "SaveYourPancakeRouter: INVALID_PATH");
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee != address(0));
+        amounts = _getAmountsOut(factory, swapAmount, path);
+        require(amounts[amounts.length - 1] >= amountOutMin, "SaveYourPancakeRouter: INSUFFICIENT_OUTPUT_AMOUNT");
+        IWETH(WETH).deposit{value: swapAmount}();
+        assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), amounts[0]));
+        _swap(factory, amounts, path, msg.sender);
 
-        amounts = IPancakeRouter02(router).swapExactETHForTokens{value: swapAmount}(amountOutMin, path, to, block.timestamp);
         if (feeAmount > 0) {
             _withdrawFeesAndRewards(address(0), referee, feeAmount, referralReward);
+        }
+    }
+
+    // **** SWAP (supporting fee-on-transfer tokens) ****
+    // requires the initial amount to have already been sent to the first pair
+    function _swapSupportingFeeOnTransferTokens(
+        address factory,
+        address[] memory path,
+        address _to
+    ) internal {
+        for (uint256 i; i < path.length - 1; i++) {
+            (address input, address output) = (path[i], path[i + 1]);
+            (address token0, ) = PancakeLibrary.sortTokens(input, output);
+            IPancakePair pair = IPancakePair(_pairFor(factory, input, output));
+            uint256 amountInput;
+            uint256 amountOutput;
+            {
+                // scope to avoid stack too deep errors
+                (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
+                (uint256 reserveInput, uint256 reserveOutput) = input == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
+                amountInput = IERC20(input).balanceOf(address(pair)).sub(reserveInput);
+                amountOutput = _getAmountOut(amountInput, reserveInput, reserveOutput);
+            }
+            (uint256 amount0Out, uint256 amount1Out) = input == token0 ? (uint256(0), amountOutput) : (amountOutput, uint256(0));
+            address to = i < path.length - 2 ? _pairFor(factory, output, path[i + 2]) : _to;
+            pair.swap(amount0Out, amount1Out, to, new bytes(0));
         }
     }
 
     function swapExactTokensForETHSupportingFeeOnTransferTokens(
-        address router,
+        address factory,
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referee
-    ) external whenNotPaused isValidReferral(referee) isValidRouter(router) {
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee != address(0));
-        IPancakeRouter02(router).swapExactTokensForETHSupportingFeeOnTransferTokens(swapAmount, amountOutMin, path, to, block.timestamp);
+    ) external whenNotPaused() isValidFactory(factory) {
+        require(path[path.length - 1] == WETH, "FloozRouter: BNB has to be the last path item");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amountIn);
+        _swapSupportingFeeOnTransferTokens(factory, path, address(this));
+        uint256 amountOut = IERC20(WETH).balanceOf(address(this));
+        require(amountOut >= amountOutMin, "FloozRouter: slippage setting to low");
+        IWETH(WETH).withdraw(amountOut);
+        (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountOut, referee != address(0));
+        TransferHelper.safeTransferETH(msg.sender, amountWithdraw);
 
-        if (feeAmount > 0) {
-            _withdrawFeesAndRewards(path[0], referee, feeAmount, referralReward);
-        }
+        if (feeAmount > 0) _withdrawFeesAndRewards(address(0), referee, feeAmount, referralReward);
     }
 
     function swapExactTokensForTokens(
-        address router,
+        address factory,
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referee
-    ) external whenNotPaused isValidReferral(referee) isValidRouter(router) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee != address(0));
-        amounts = IPancakeRouter02(router).swapExactTokensForTokens(swapAmount, amountOutMin, path, address(this), block.timestamp);
-        if (feeAmount > 0) {
-            _withdrawFeesAndRewards(path[0], referee, feeAmount, referralReward);
-        }
+        amounts = _getAmountsOut(factory, swapAmount, path);
+        require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
+        _swap(factory, amounts, path, msg.sender);
+
+        if (feeAmount > 0) _withdrawFeesAndRewards(path[0], referee, feeAmount, referralReward);
     }
 
     function swapExactTokensForETH(
-        address router,
+        address factory,
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referee
-    ) external whenNotPaused isValidReferral(referee) isValidRouter(router) returns (uint256[] memory amounts) {
-        TransferHelper.safeTransferFrom(path[0], msg.sender, address(this), amountIn);
-        TransferHelper.safeApprove(path[0], router, amountIn);
-        amounts = IPancakeRouter02(router).swapExactTokensForETH(amountIn, amountOutMin, path, address(this), block.timestamp);
-
-        (uint256 withdrawAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+    ) external whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+        require(path[path.length - 1] == WETH, "FloozRouter: INVALID_PATH");
+        amounts = _getAmountsOut(factory, amountIn, path);
+        require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
+        _swap(factory, amounts, path, address(this));
+        IWETH(WETH).withdraw(amounts[amounts.length - 1]);
+        (uint256 amountOut, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
             amounts[amounts.length - 1],
             referee != address(0)
         );
+        TransferHelper.safeTransferETH(msg.sender, amountOut);
 
-        TransferHelper.safeTransferETH(msg.sender, withdrawAmount);
-        if (feeAmount > 0) {
-            _withdrawFeesAndRewards(address(0), referee, feeAmount, referralReward);
-        }
+        if (feeAmount > 0) _withdrawFeesAndRewards(address(0), referee, feeAmount, referralReward);
     }
 
     function swapETHForExactTokens(
-        address router,
+        address factory,
         uint256 amountOut,
         address[] calldata path,
-        address to,
         address referee
-    ) external payable whenNotPaused isValidReferral(referee) isValidRouter(router) returns (uint256[] memory amounts) {
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee != address(0));
-        amounts = IPancakeRouter02(router).swapETHForExactTokens{value: swapAmount}(amountOut, path, to, block.timestamp);
-        if (feeAmount > 0) {
-            _withdrawFeesAndRewards(address(0), referee, feeAmount, referralReward);
-        }
+    ) external payable whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+        require(path[0] == WETH, "FloozRouter: INVALID_PATH");
+        amounts = _getAmountsIn(factory, amountOut, path);
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee != address(0));
+        require(amounts[0].add(feeAmount).add(referralReward) <= msg.value, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
+        IWETH(WETH).deposit{value: amounts[0]}();
+        assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), amounts[0]));
+        _swap(factory, amounts, path, msg.sender);
+
+        if (feeAmount > 0) _withdrawFeesAndRewards(address(0), referee, feeAmount, referralReward);
+
+        // refund dust eth, if any
+        if (msg.value > amounts[0].add(feeAmount).add(referralReward))
+            TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0].add(feeAmount).add(referralReward));
     }
 
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
-        address router,
+        address factory,
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referee
-    ) external whenNotPaused isValidReferral(referee) isValidRouter(router) {
+    ) external whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee != address(0));
-        IPancakeRouter02(router).swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            swapAmount,
-            amountOutMin,
-            path,
-            address(this),
-            block.timestamp
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), swapAmount);
+        uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(msg.sender);
+        _swapSupportingFeeOnTransferTokens(factory, path, msg.sender);
+        require(
+            IERC20(path[path.length - 1]).balanceOf(msg.sender).sub(balanceBefore) >= amountOutMin,
+            "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT"
         );
 
-        if (feeAmount > 0) {
-            _withdrawFeesAndRewards(path[0], referee, feeAmount, referralReward);
-        }
+        if (feeAmount > 0) _withdrawFeesAndRewards(path[0], referee, feeAmount, referralReward);
     }
 
     function swapTokensForExactTokens(
-        address router,
+        address factory,
         uint256 amountOut,
         uint256 amountInMax,
         address[] calldata path,
-        address to,
         address referee
-    ) external whenNotPaused isValidReferral(referee) isValidRouter(router) returns (uint256[] memory amounts) {
-        amounts = IPancakeRouter02(router).swapTokensForExactTokens(amountOut, amountInMax, path, address(this), block.timestamp);
+    ) external whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+        amounts = _getAmountsIn(factory, amountOut, path);
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee != address(0));
+        require(amounts[0].add(feeAmount).add(referralReward) <= amountInMax, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
+        _swap(factory, amounts, path, msg.sender);
 
-        (uint256 withdrawAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-            amounts[amounts.length - 1],
-            referee != address(0)
-        );
-
-        TransferHelper.safeTransfer(path[path.length - 1], msg.sender, withdrawAmount);
-        if (feeAmount > 0) {
-            _withdrawFeesAndRewards(path[0], referee, feeAmount, referralReward);
-        }
+        if (feeAmount > 0) _withdrawFeesAndRewards(path[0], referee, feeAmount, referralReward);
     }
 
     function swapTokensForExactETH(
-        address router,
+        address factory,
         uint256 amountOut,
         uint256 amountInMax,
         address[] calldata path,
-        address to,
         address referee
-    ) external whenNotPaused isValidReferral(referee) isValidRouter(router) returns (uint256[] memory amounts) {
-        amounts = IPancakeRouter02(router).swapTokensForExactETH(amountOut, amountInMax, path, address(this), block.timestamp);
-
+    ) external whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+        require(path[path.length - 1] == WETH, "FloozRouter: INVALID_PATH");
+        amounts = _getAmountsIn(factory, amountOut, path);
+        require(amounts[0] <= amountInMax, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
+        _swap(factory, amounts, path, address(this));
+        IWETH(WETH).withdraw(amounts[amounts.length - 1]);
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
             amounts[amounts.length - 1],
             referee != address(0)
         );
 
         TransferHelper.safeTransferETH(msg.sender, swapAmount);
-        if (feeAmount > 0) {
-            _withdrawFeesAndRewards(path[0], referee, feeAmount, referralReward);
-        }
+        if (feeAmount > 0) _withdrawFeesAndRewards(address(0), referee, feeAmount, referralReward);
     }
 
     function swapExactETHForTokensSupportingFeeOnTransferTokens(
-        address router,
+        address factory,
         uint256 amountOutMin,
         address[] calldata path,
-        address to,
         address referee
-    ) external payable whenNotPaused isValidReferral(referee) isValidRouter(router) {
+    ) external payable whenNotPaused() isValidFactory(factory) {
+        require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee != address(0));
-
-        IPancakeRouter02(router).swapExactETHForTokensSupportingFeeOnTransferTokens{value: swapAmount}(
-            amountOutMin,
-            path,
-            address(this),
-            block.timestamp
+        IWETH(WETH).deposit{value: swapAmount}();
+        assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), swapAmount));
+        uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(msg.sender);
+        _swapSupportingFeeOnTransferTokens(factory, path, msg.sender);
+        require(
+            IERC20(path[path.length - 1]).balanceOf(msg.sender).sub(balanceBefore) >= amountOutMin,
+            "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT"
         );
-
-        if (feeAmount > 0) {
-            _withdrawFeesAndRewards(address(0), referee, feeAmount, referralReward);
-        }
+        if (feeAmount > 0) _withdrawFeesAndRewards(address(0), referee, feeAmount, referralReward);
     }
 
     function _calculateFeesAndRewards(uint256 amount, bool isReferral)
@@ -242,7 +292,7 @@ contract FloozRouter is Ownable, Pausable {
             swapAmount = amount.sub(fees);
             if (isReferral) {
                 feeAmount = fees.div(2);
-                referralReward = swapAmount.sub(feeAmount);
+                referralReward = amount.sub(swapAmount).sub(feeAmount);
             } else {
                 referralReward = 0;
                 feeAmount = fees;
@@ -250,28 +300,12 @@ contract FloozRouter is Ownable, Pausable {
         }
     }
 
-    function _withdrawFeesAndRewards(
-        address token,
-        address referee,
-        uint256 feeAmount,
-        uint256 referralReward
-    ) internal {
-        if (token == address(0)) {
-            TransferHelper.safeTransferETH(feeReceiver, feeAmount);
-            if (referralReward > 0) {
-                //referralManager.registerReferral{value: referralReward}(referee, token, referralReward);
-            }
-        } else {
-            TransferHelper.safeTransfer(token, feeReceiver, feeAmount);
-            if (referralReward > 0) {
-                //IERC20(token).approve(address(referralManager), referralReward);
-                //referralManager.registerReferral(referee, token, referralReward);
-            }
-        }
+    function userAboveBalanceThreshold(address _account) public view returns (bool) {
+        return saveYourAssetsToken.balanceOf(_account) >= balanceThreshold;
     }
 
     function getUserFee(address user) public view returns (uint256) {
-        return saveYourAssetsToken.balanceOf(user) >= balanceThreshold ? 0 : swapFee;
+        saveYourAssetsToken.balanceOf(user) >= balanceThreshold ? 0 : swapFee;
     }
 
     function updateSwapFee(uint8 newSwapFee) external onlyOwner {
@@ -289,15 +323,11 @@ contract FloozRouter is Ownable, Pausable {
         emit BalanceThresholdUpdated(balanceThreshold);
     }
 
-    function userAboveBalanceThreshold(address _account) public view returns (bool) {
-        return saveYourAssetsToken.balanceOf(_account) >= balanceThreshold;
-    }
-
     /**
      * @dev Withdraw BNB that somehow ended up in the contract.
      */
-    function withdrawBnb() external onlyOwner {
-        TransferHelper.safeTransferETH(msg.sender, address(this).balance);
+    function withdrawBnb(address payable to, uint256 amount) external onlyOwner {
+        to.transfer(amount);
     }
 
     /**
@@ -310,6 +340,117 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amount
     ) external onlyOwner {
         IERC20(token).transfer(to, amount);
+    }
+
+    function _withdrawFeesAndRewards(
+        address token,
+        address referee,
+        uint256 feeAmount,
+        uint256 referralReward
+    ) internal {
+        if (token == address(0)) {
+            TransferHelper.safeTransferETH(feeReceiver, feeAmount);
+            if (referralReward > 0) {
+                TransferHelper.safeTransferETH(referee, referralReward);
+                emit ReferralRewardPaid(msg.sender, referee, address(0), referralReward);
+            }
+        } else {
+            TransferHelper.safeTransferFrom(token, msg.sender, feeReceiver, feeAmount);
+            if (referralReward > 0) {
+                TransferHelper.safeTransferFrom(token, msg.sender, referee, referralReward);
+                emit ReferralRewardPaid(msg.sender, referee, token, referralReward);
+            }
+        }
+    }
+
+    // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
+    function _getAmountOut(
+        uint256 amountIn,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) internal view returns (uint256 amountOut) {
+        require(amountIn > 0, "FloozRouter: INSUFFICIENT_INPUT_AMOUNT");
+        require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
+        uint256 amountInWithFee = amountIn.mul((9975 - getUserFee(msg.sender)));
+        uint256 numerator = amountInWithFee.mul(reserveOut);
+        uint256 denominator = reserveIn.mul(10000).add(amountInWithFee);
+        amountOut = numerator / denominator;
+    }
+
+    // given an output amount of an asset and pair reserves, returns a required input amount of the other asset
+    function _getAmountIn(
+        uint256 amountOut,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) internal view returns (uint256 amountIn) {
+        require(amountOut > 0, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
+        require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
+        uint256 numerator = reserveIn.mul(amountOut).mul(10000);
+        uint256 denominator = reserveOut.sub(amountOut).mul(9975 - getUserFee(msg.sender));
+        amountIn = (numerator / denominator).add(1);
+    }
+
+    // performs chained getAmountOut calculations on any number of pairs
+    function _getAmountsOut(
+        address factory,
+        uint256 amountIn,
+        address[] memory path
+    ) internal view returns (uint256[] memory amounts) {
+        require(path.length >= 2, "FloozRouter: INVALID_PATH");
+        amounts = new uint256[](path.length);
+        amounts[0] = amountIn;
+        for (uint256 i; i < path.length - 1; i++) {
+            (uint256 reserveIn, uint256 reserveOut) = _getReserves(factory, path[i], path[i + 1]);
+            amounts[i + 1] = _getAmountOut(amounts[i], reserveIn, reserveOut);
+        }
+    }
+
+    // performs chained getAmountIn calculations on any number of pairs
+    function _getAmountsIn(
+        address factory,
+        uint256 amountOut,
+        address[] memory path
+    ) internal view returns (uint256[] memory amounts) {
+        require(path.length >= 2, "FloozRouter: INVALID_PATH");
+        amounts = new uint256[](path.length);
+        amounts[amounts.length - 1] = amountOut;
+        for (uint256 i = path.length - 1; i > 0; i--) {
+            (uint256 reserveIn, uint256 reserveOut) = _getReserves(factory, path[i - 1], path[i]);
+            amounts[i - 1] = _getAmountIn(amounts[i], reserveIn, reserveOut);
+        }
+    }
+
+    // fetches and sorts the reserves for a pair
+    function _getReserves(
+        address factory,
+        address tokenA,
+        address tokenB
+    ) internal view returns (uint256 reserveA, uint256 reserveB) {
+        (address token0, ) = PancakeLibrary.sortTokens(tokenA, tokenB);
+        (uint256 reserve0, uint256 reserve1, ) = IPancakePair(_pairFor(factory, tokenA, tokenB)).getReserves();
+        (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
+    }
+
+    // calculates the CREATE2 address for a pair without making any external calls
+    function _pairFor(
+        address factory,
+        address tokenA,
+        address tokenB
+    ) internal view returns (address pair) {
+        (address token0, address token1) = PancakeLibrary.sortTokens(tokenA, tokenB);
+        bytes memory initcode = factory == pancakeFactoryV1 ? pancakeInitCodeV1 : pancakeInitCodeV2;
+        pair = address(
+            uint256(
+                keccak256(
+                    abi.encodePacked(
+                        hex"ff",
+                        factory,
+                        keccak256(abi.encodePacked(token0, token1)),
+                        initcode // init code hash
+                    )
+                )
+            )
+        );
     }
 
     function pause() external onlyOwner {

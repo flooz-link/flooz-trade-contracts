@@ -1,10 +1,10 @@
-pragma solidity ^0.8.0;
+pragma solidity =0.6.6;
 //SPDX-License-Identifier: Unlicense
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./libraries/TransferHelper.sol";
 import "./interfaces/IPancakeRouter02.sol";
 import "./interfaces/IWETH.sol";
@@ -32,7 +32,7 @@ contract FeeReceiver is Pausable, Ownable {
         address _WBNB,
         address payable _revenueReceiver,
         uint256 _buybackRate
-    ) {
+    ) public {
         pancakeRouter = _pancakeRouterV2;
         SYA = _SYA;
         WBNB = _WBNB;
