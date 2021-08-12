@@ -13,6 +13,7 @@ import "./interfaces/IWETH.sol";
 contract FloozRouter is Ownable, Pausable {
     using SafeMath for uint256;
     event SwapFeeUpdated(uint8 swapFee);
+    event ReferralRewardRateUpdated(uint16 referralRewardRate);
     event FeeReceiverUpdated(address feeReceiver);
     event BalanceThresholdUpdated(uint256 balanceThreshold);
     event ReferralRewardPaid(address from, address to, address token, uint256 amount);
@@ -27,6 +28,7 @@ contract FloozRouter is Ownable, Pausable {
     uint256 public balanceThreshold;
     address public feeReceiver;
     uint8 public swapFee;
+    uint16 public referralRewardRate;
 
     modifier isValidFactory(address factory) {
         require(factory == pancakeFactoryV1 || factory == pancakeFactoryV2, "FloozRouter: invalid factory");
@@ -36,6 +38,7 @@ contract FloozRouter is Ownable, Pausable {
     constructor(
         address _WETH,
         uint8 _swapFee,
+        uint16 _referralRewardRate,
         address _feeReceiver,
         uint256 _balanceThreshold,
         IERC20 _saveYourAssetsToken,
@@ -46,6 +49,7 @@ contract FloozRouter is Ownable, Pausable {
     ) public {
         WETH = _WETH;
         swapFee = _swapFee;
+        referralRewardRate = _referralRewardRate;
         feeReceiver = _feeReceiver;
         saveYourAssetsToken = _saveYourAssetsToken;
         balanceThreshold = _balanceThreshold;
@@ -291,8 +295,8 @@ contract FloozRouter is Ownable, Pausable {
             uint256 fees = amount.mul(swapFee).div(FEE_DENOMINATOR);
             swapAmount = amount.sub(fees);
             if (isReferral) {
-                feeAmount = fees.div(2);
-                referralReward = amount.sub(swapAmount).sub(feeAmount);
+                referralReward = fees.mul(referralRewardRate).div(FEE_DENOMINATOR);
+                feeAmount = amount.sub(swapAmount).sub(referralReward);
             } else {
                 referralReward = 0;
                 feeAmount = fees;
@@ -311,6 +315,11 @@ contract FloozRouter is Ownable, Pausable {
     function updateSwapFee(uint8 newSwapFee) external onlyOwner {
         swapFee = newSwapFee;
         emit SwapFeeUpdated(newSwapFee);
+    }
+
+    function updateReferralRewardRate(uint16 newReferralRewardRate) external onlyOwner {
+        referralRewardRate = newReferralRewardRate;
+        emit ReferralRewardRateUpdated(newReferralRewardRate);
     }
 
     function updateFeeReceiver(address newFeeReceiver) external onlyOwner {

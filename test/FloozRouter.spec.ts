@@ -87,7 +87,7 @@ describe('FloozRouter', () => {
             const token1Amount = expandTo18Decimals(10)
             const swapAmount = expandTo18Decimals(1)
             const swapAmountAfterFee = ethers.utils.parseEther('0.995')
-            const referralReward = ethers.utils.parseEther('0.0025')
+            const referralReward = ethers.utils.parseEther('0.0005')
             const expectedOutputAmount = BigNumber.from('1656254367429354548')
             const expectedOutputAmountSyaHolder = BigNumber.from('1525777466624074950')
             let token0reserve: BigNumber, token1reserve: BigNumber
@@ -219,7 +219,7 @@ describe('FloozRouter', () => {
             const ETHAmount = expandTo18Decimals(5)
             const swapAmount = expandTo18Decimals(1)
             const swapAmountAfterFee = ethers.utils.parseEther('0.995')
-            const referralReward = ethers.utils.parseEther('0.0025')
+            const referralReward = ethers.utils.parseEther('0.0005')
             const expectedOutputAmount = BigNumber.from('1656254367429354548')
 
             beforeEach(async () => {

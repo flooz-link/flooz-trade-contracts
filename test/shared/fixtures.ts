@@ -25,6 +25,7 @@ interface V2Fixture {
 
 export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     let swapFee = 50 // 0.5 %
+    let referralFee = 1000 // 10 % of swapFee
     let balanceThreshold = expandTo9Decimals(100000000) // 1000 SYA
     let ERC20 = await ethers.getContractFactory('ERC20')
     let SYA = await ethers.getContractFactory('SYAMOCK')
@@ -48,7 +49,7 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     const factoryV2 = await PancakeFactory.deploy(wallet.address)
     const initHash = await factoryV2.INIT_CODE_PAIR_HASH()
     const pancakeRouterV2 = await PancakeRouterV2.deploy(factoryV2.address, WETH.address)
-    //console.log('INIT_CODE_PAIR_HASH:', initHash)
+    console.log('INIT_CODE_PAIR_HASH:', initHash)
 
     // deploy Fee Receiver
     const revenueReceiver = wallet.address
@@ -58,6 +59,7 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     const router = await FloozRouter.deploy(
         WETH.address,
         swapFee,
+        referralFee,
         feeReceiver.address,
         balanceThreshold,
         syaToken.address,
