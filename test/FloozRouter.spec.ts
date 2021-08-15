@@ -168,7 +168,7 @@ describe('FloozRouter', () => {
                     .to.emit(token0, 'Transfer')
                     .withArgs(owner.address, syaHolder.address, referralReward)
                     .to.emit(router, 'ReferralRewardPaid')
-                    .withArgs(owner.address, syaHolder.address, token0.address, referralReward)
+                    .withArgs(owner.address, syaHolder.address, token1.address, token0.address, referralReward)
                     .to.emit(token1, 'Transfer')
                     .withArgs(pair.address, owner.address, expectedOutputAmount)
                     .to.emit(pair, 'Sync')
@@ -280,7 +280,7 @@ describe('FloozRouter', () => {
                     .to.emit(WETHPartner, 'Transfer')
                     .withArgs(WETHPair.address, owner.address, expectedOutputAmount)
                     .to.emit(router, 'ReferralRewardPaid')
-                    .withArgs(owner.address, syaHolder.address, ethers.constants.AddressZero, referralReward)
+                    .withArgs(owner.address, syaHolder.address, WETHPartner.address, ethers.constants.AddressZero, referralReward)
                     .to.emit(WETHPair, 'Sync')
                     .withArgs(
                         WETHPairToken0 === WETHPartner.address
