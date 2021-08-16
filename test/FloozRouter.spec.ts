@@ -1,5 +1,5 @@
 import chai, { expect } from 'chai'
-import { BigNumber, Contract, utils } from 'ethers'
+import { BigNumber, constants, Contract, utils } from 'ethers'
 import { solidity, createFixtureLoader } from 'ethereum-waffle'
 import hre, { ethers, waffle } from 'hardhat'
 
@@ -610,6 +610,32 @@ describe('FloozRouter', () => {
             await expect(await router.updateBalanceThreshold(104))
                 .to.emit(router, 'BalanceThresholdUpdated')
                 .withArgs(104)
+        })
+
+        it('only owner can update referralRewardRate', async () => {
+            await expect(router.connect(wallet).updateReferralRewardRate(5500)).to.be.revertedWith('Ownable: caller is not the owner')
+
+            await expect(await router.updateReferralRewardRate(5500))
+                .to.emit(router, 'ReferralRewardRateUpdated')
+                .withArgs(5500)
+        })
+
+        it('only owner can update referralsActivated', async () => {
+            await expect(router.connect(wallet).updateReferralsActivated(true)).to.be.revertedWith('Ownable: caller is not the owner')
+
+            await expect(await router.updateReferralsActivated(true))
+                .to.emit(router, 'ReferralsActivatedUpdated')
+                .withArgs(true)
+        })
+    })
+
+    describe('View functions', () => {
+        it('returns referee correcly', async () => {
+            expect(await router.getUserReferee(owner.address)).to.eq(syaHolder.address)
+            expect(await router.hasUserReferee(owner.address)).to.eq(true)
+
+            expect(await router.getUserReferee(syaHolder.address)).to.eq(ethers.constants.AddressZero)
+            expect(await router.hasUserReferee(syaHolder.address)).to.eq(false)
         })
     })
 })

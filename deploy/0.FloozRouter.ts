@@ -49,7 +49,18 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         from: deployer,
         log: true,
         contract: 'FloozRouter',
-        args: [WETH, swapFee, referralReward, feeReceiver.address, balanceThreshold, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2],
+        args: [
+            WETH,
+            swapFee,
+            referralReward,
+            feeReceiver.address,
+            balanceThreshold,
+            syaToken,
+            factoryV1,
+            factoryV2,
+            initCodeV1,
+            initCodeV2,
+        ],
     })
 
     await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', owner)

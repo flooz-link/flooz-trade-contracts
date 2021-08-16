@@ -41,6 +41,11 @@ contract FloozRouter is Ownable, Pausable {
         _;
     }
 
+    modifier isValidReferee(address referee) {
+        require(msg.sender != referee, "FloozRouter: self referral");
+        _;
+    }
+
     constructor(
         address _WETH,
         uint8 _swapFee,
@@ -91,7 +96,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountOutMin,
         address[] calldata path,
         address referee
-    ) external payable whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+    ) external payable whenNotPaused() isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee != address(0));
@@ -138,7 +143,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountOutMin,
         address[] calldata path,
         address referee
-    ) external whenNotPaused() isValidFactory(factory) {
+    ) external whenNotPaused() isValidFactory(factory) isValidReferee(referee) {
         require(path[path.length - 1] == WETH, "FloozRouter: BNB has to be the last path item");
         referee = _getReferee(referee);
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amountIn);
@@ -158,7 +163,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountOutMin,
         address[] calldata path,
         address referee
-    ) external whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         referee = _getReferee(referee);
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee != address(0));
         amounts = _getAmountsOut(factory, swapAmount, path);
@@ -175,7 +180,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountOutMin,
         address[] calldata path,
         address referee
-    ) external whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         require(path[path.length - 1] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
         amounts = _getAmountsOut(factory, amountIn, path);
@@ -197,7 +202,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountOut,
         address[] calldata path,
         address referee
-    ) external payable whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+    ) external payable whenNotPaused() isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
         amounts = _getAmountsIn(factory, amountOut, path);
@@ -220,7 +225,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountOutMin,
         address[] calldata path,
         address referee
-    ) external whenNotPaused() isValidFactory(factory) {
+    ) external whenNotPaused() isValidFactory(factory) isValidReferee(referee) {
         referee = _getReferee(referee);
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee != address(0));
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), swapAmount);
@@ -240,7 +245,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountInMax,
         address[] calldata path,
         address referee
-    ) external whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         referee = _getReferee(referee);
         amounts = _getAmountsIn(factory, amountOut, path);
         (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee != address(0));
@@ -257,7 +262,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountInMax,
         address[] calldata path,
         address referee
-    ) external whenNotPaused() isValidFactory(factory) returns (uint256[] memory amounts) {
+    ) external whenNotPaused() isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         require(path[path.length - 1] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
         amounts = _getAmountsIn(factory, amountOut, path);
@@ -279,7 +284,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountOutMin,
         address[] calldata path,
         address referee
-    ) external payable whenNotPaused() isValidFactory(factory) {
+    ) external payable whenNotPaused() isValidFactory(factory) isValidReferee(referee) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee != address(0));
@@ -366,7 +371,7 @@ contract FloozRouter is Ownable, Pausable {
         return referralAnchor[user];
     }
 
-    function hasUserReferre(address user) external view returns (bool) {
+    function hasUserReferee(address user) external view returns (bool) {
         return referralAnchor[user] != address(0);
     }
 
@@ -400,14 +405,15 @@ contract FloozRouter is Ownable, Pausable {
             TransferHelper.safeTransferETH(feeReceiver, feeAmount);
             if (referralReward > 0) {
                 TransferHelper.safeTransferETH(referee, referralReward);
+                emit ReferralRewardPaid(msg.sender, referee, tokenOut, tokenReward, referralReward);
             }
         } else {
             TransferHelper.safeTransferFrom(tokenReward, msg.sender, feeReceiver, feeAmount);
             if (referralReward > 0) {
                 TransferHelper.safeTransferFrom(tokenReward, msg.sender, referee, referralReward);
+                emit ReferralRewardPaid(msg.sender, referee, tokenOut, tokenReward, referralReward);
             }
         }
-        emit ReferralRewardPaid(msg.sender, referee, tokenOut, tokenReward, referralReward);
     }
 
     // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
