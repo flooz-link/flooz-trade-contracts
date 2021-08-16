@@ -30,10 +30,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         initCodeV1 = '0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66'
         initCodeV2 = '0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66'
         pancakeRouterV2 = '0x10ED43C718714eb63d5aA57B78B54704E256024E'
-        owner = '0x616b9E8ebf9cAc11E751713f3d765Cc22cC7d1D5'
+        owner = deployer
     }
 
     let swapFee = 50 // 0.5 %
+    let referralReward = 1000 // 10 %
     let buybackRate = 5000 // 50%
     let balanceThreshold = expandTo9Decimals(5000000000) //5b SYA
 
@@ -48,7 +49,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         from: deployer,
         log: true,
         contract: 'FloozRouter',
-        args: [WETH, swapFee, feeReceiver.address, balanceThreshold, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2],
+        args: [WETH, swapFee, referralReward, feeReceiver.address, balanceThreshold, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2],
     })
 
     await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', owner)
