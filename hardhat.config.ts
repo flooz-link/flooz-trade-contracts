@@ -14,7 +14,6 @@ module.exports = {
     defaultNetwork: 'hardhat',
     networks: {
         hardhat: {
-            allowUnlimitedContractSize: true,
             live: false,
             tags: ['local'],
             accounts: {
@@ -22,14 +21,13 @@ module.exports = {
             },
         },
         testnet: {
-            allowUnlimitedContractSize: true,
             url: 'https://data-seed-prebsc-2-s2.binance.org:8545',
             chainId: 97,
             accounts: [process.env.PRIVATE_KEY_TESTNET],
         },
         mainnet: {
             live: true,
-            url: 'https://bsc-dataseed1.defibit.io/',
+            url: 'https://bsc-dataseed.binance.org/',
             chainId: 56,
             gasPrice: 5000000000,
             accounts: [process.env.PRIVATE_KEY_MAINNET],
@@ -39,7 +37,6 @@ module.exports = {
             tags: ['local'],
             url: 'http://127.0.0.1:8547',
             accounts: [process.env.PRIVATE_KEY_LOCALHOST],
-            allowUnlimitedContractSize: true,
         },
     },
     mocha: {

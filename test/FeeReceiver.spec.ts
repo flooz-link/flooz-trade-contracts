@@ -146,9 +146,9 @@ describe('FeeReceiver', () => {
                 'Ownable: caller is not the owner'
             )
 
-            await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(ethers.utils.parseEther("2.046515147306498939"))
+            await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(ethers.utils.parseEther('2.046515147306498939'))
 
-            await feeReceiver.withdrawBnb(owner.address, ethers.utils.parseEther("2.046515147306498939"))
+            await feeReceiver.withdrawBnb(owner.address, ethers.utils.parseEther('2.046515147306498939'))
             await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(0))
         })
 

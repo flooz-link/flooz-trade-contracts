@@ -44,7 +44,7 @@ contract FeeReceiver is Pausable, Ownable {
     /**
      * @dev executes the buyback, buys SYA & sends revenue to the revenueReceiver by the defined rate
      */
-    function executeBuyback() external whenNotPaused() {
+    function executeBuyback() external whenNotPaused {
         require(address(this).balance > 0, "FeeReceiver: No balance for buyback");
         address[] memory path = new address[](2);
         path[0] = WBNB;
@@ -66,7 +66,7 @@ contract FeeReceiver is Pausable, Ownable {
         address _router,
         IERC20 _token,
         bool _fee
-    ) public whenNotPaused() {
+    ) public whenNotPaused {
         require(routerWhitelist[_router], "FeeReceiver: Router not whitelisted");
         address[] memory path = new address[](2);
         path[0] = address(_token);
@@ -84,7 +84,7 @@ contract FeeReceiver is Pausable, Ownable {
     /**
      * @dev converts WBNB to BNB
      */
-    function unwrapWBNB() public whenNotPaused() {
+    function unwrapWBNB() public whenNotPaused {
         uint256 balance = IWETH(WBNB).balanceOf(address(this));
         require(balance > 0, "FeeReceiver: Nothing to unwrap");
         IWETH(WBNB).withdraw(balance);

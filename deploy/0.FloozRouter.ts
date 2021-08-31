@@ -11,7 +11,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log('\n======== DEPLOYMENT STARTED ========')
     console.log('Using Deployer account: ', deployer)
 
-    let WETH, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2, pancakeRouterV2, owner
+    let WETH, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2, pancakeRouterV2, contractOwner
 
     if (network.name == 'mainnet') {
         WETH = process.env.MAINNET_WETH
@@ -21,7 +21,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         initCodeV1 = '0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66'
         initCodeV2 = '0x00fb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5'
         pancakeRouterV2 = '0x10ED43C718714eb63d5aA57B78B54704E256024E'
-        owner = '0x616b9E8ebf9cAc11E751713f3d765Cc22cC7d1D5'
+        contractOwner = '0x616b9E8ebf9cAc11E751713f3d765Cc22cC7d1D5'
     } else {
         WETH = process.env.TESTNET_WETH
         syaToken = process.env.TESTNET_SYA
@@ -30,7 +30,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         initCodeV1 = '0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66'
         initCodeV2 = '0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66'
         pancakeRouterV2 = '0x10ED43C718714eb63d5aA57B78B54704E256024E'
-        owner = deployer
+        contractOwner = deployer
     }
 
     let swapFee = 50 // 0.5 %
@@ -42,13 +42,14 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         from: deployer,
         log: true,
         contract: 'FeeReceiver',
-        args: [pancakeRouterV2, syaToken, WETH, owner, buybackRate],
+        args: [pancakeRouterV2, syaToken, WETH, contractOwner, buybackRate],
     })
 
-    const syaRouter = await deploy('SYARouter', {
+    const FloozRouter = await deploy('FloozRouter', {
         from: deployer,
         log: true,
         contract: 'FloozRouter',
+        proxy: true,
         args: [
             WETH,
             swapFee,
@@ -63,8 +64,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         ],
     })
 
-    await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', owner)
-    await execute('SYARouter', { from: deployer, log: true }, 'transferOwnership', owner)
+    await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', contractOwner)
+    await execute('FloozRouter', { from: deployer, log: true }, 'transferOwnership', contractOwner)
 }
 
 export default func
