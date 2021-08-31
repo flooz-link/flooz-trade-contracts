@@ -48,8 +48,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const FloozRouter = await deploy('FloozRouter', {
         from: deployer,
         log: true,
+        proxy: { proxyContract: 'OpenZeppelinTransparentProxy' },
         contract: 'FloozRouter',
-        proxy: true,
         args: [
             WETH,
             swapFee,
@@ -65,7 +65,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     })
 
     await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', contractOwner)
-    await execute('FloozRouter', { from: deployer, log: true }, 'transferOwnership', contractOwner)
+    //await execute('FloozRouter', { from: deployer, log: true }, 'transferOwnership', contractOwner)
 }
 
 export default func

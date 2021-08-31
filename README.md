@@ -7,10 +7,10 @@ To run the tests, follow these steps. You must have at least node v10 and [yarn]
 First clone the repository:
 
 ```sh
-git clone git@bitbucket.org:Lamine-23/save-your-pancake-contracts.git
+git clone git@bitbucket.org:Lamine-23/flooz-trade-contracts.git
 ```
 
-Move into the save-your-pancake working directory
+Move into the flooz-trade-contracts working directory
 
 ```sh
 cd flooz-trade-contracts/

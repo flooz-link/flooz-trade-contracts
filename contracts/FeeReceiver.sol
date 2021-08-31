@@ -1,5 +1,5 @@
 pragma solidity =0.6.6;
-//SPDX-License-Identifier: Unlicense
+//SPDX-License-Identifier: UNLICENSED
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
