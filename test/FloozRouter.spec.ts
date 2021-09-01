@@ -627,6 +627,20 @@ describe('FloozRouter', () => {
                 .to.emit(router, 'ReferralsActivatedUpdated')
                 .withArgs(true)
         })
+
+        it('only owner can update custom referral fees', async () => {
+            await expect(router.connect(wallet).updateCustomReferralRewardRate(wallet.address, 25)).to.be.revertedWith(
+                'Ownable: caller is not the owner'
+            )
+
+            await expect(await router.updateCustomReferralRewardRate(wallet.address, 25))
+                .to.emit(router, 'CustomReferralRewardRateUpdated')
+                .withArgs(wallet.address, 25)
+        })
+
+        it('throws if trying to update custom referral fee that is higher then swap Fee', async () => {
+            await expect(router.updateCustomReferralRewardRate(wallet.address, 100)).to.be.revertedWith('FloozRouter: INVALID_RATE')
+        })
     })
 
     describe('View functions', () => {

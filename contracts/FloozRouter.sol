@@ -367,7 +367,7 @@ contract FloozRouter is Ownable, Pausable {
     }
 
     function updateCustomReferralRewardRate(address account, uint16 referralRate) external onlyOwner returns (uint256) {
-        require(referralRate < swapFee, "FloozRouter: Invalid referral rate");
+        require(referralRate < swapFee, "FloozRouter: INVALID_RATE");
         customReferralRewardRate[account] = referralRate;
         emit CustomReferralRewardRateUpdated(account, referralRate);
     }
