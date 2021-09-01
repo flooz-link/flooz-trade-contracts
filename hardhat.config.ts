@@ -6,7 +6,6 @@ import '@nomiclabs/hardhat-etherscan'
 import 'hardhat-dependency-compiler'
 import 'hardhat-typechain'
 import 'hardhat-tracer'
-import 'hardhat-interface-generator'
 
 require('dotenv').config()
 
