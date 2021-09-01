@@ -12,12 +12,13 @@ import "./interfaces/IWETH.sol";
 
 contract FloozRouter is Ownable, Pausable {
     using SafeMath for uint256;
-    event SwapFeeUpdated(uint8 swapFee);
+    event SwapFeeUpdated(uint16 swapFee);
     event ReferralRewardRateUpdated(uint16 referralRewardRate);
     event ReferralsActivatedUpdated(bool activated);
     event FeeReceiverUpdated(address feeReceiver);
     event BalanceThresholdUpdated(uint256 balanceThreshold);
     event ReferralAnchorCreated(address indexed user, address indexed referee);
+    event CustomReferralRewardRateUpdated(address indexed account, uint16 referralRate);
     event ReferralRewardPaid(address from, address indexed to, address tokenOut, address tokenReward, uint256 amount);
 
     uint256 public constant FEE_DENOMINATOR = 10000;
@@ -29,9 +30,12 @@ contract FloozRouter is Ownable, Pausable {
     IERC20 public saveYourAssetsToken;
     uint256 public balanceThreshold;
     address public feeReceiver;
-    uint8 public swapFee;
+    uint16 public swapFee;
     uint16 public referralRewardRate;
     bool public referralsActivated;
+
+    // stores individual referral rates
+    mapping(address => uint16) public customReferralRewardRate;
 
     // stores the address that refered this user
     mapping(address => address) public referralAnchor;
@@ -48,7 +52,7 @@ contract FloozRouter is Ownable, Pausable {
 
     constructor(
         address _WETH,
-        uint8 _swapFee,
+        uint16 _swapFee,
         uint16 _referralRewardRate,
         address _feeReceiver,
         uint256 _balanceThreshold,
@@ -99,7 +103,7 @@ contract FloozRouter is Ownable, Pausable {
     ) external payable whenNotPaused isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee != address(0));
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee);
         amounts = _getAmountsOut(factory, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         IWETH(WETH).deposit{value: swapAmount}();
@@ -151,7 +155,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountOut = IERC20(WETH).balanceOf(address(this));
         require(amountOut >= amountOutMin, "FloozRouter: slippage setting to low");
         IWETH(WETH).withdraw(amountOut);
-        (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountOut, referee != address(0));
+        (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountOut, referee);
         TransferHelper.safeTransferETH(msg.sender, amountWithdraw);
 
         if (feeAmount > 0) _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
@@ -165,7 +169,7 @@ contract FloozRouter is Ownable, Pausable {
         address referee
     ) external whenNotPaused isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         referee = _getReferee(referee);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee != address(0));
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee);
         amounts = _getAmountsOut(factory, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
@@ -188,10 +192,7 @@ contract FloozRouter is Ownable, Pausable {
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
         _swap(factory, amounts, path, address(this));
         IWETH(WETH).withdraw(amounts[amounts.length - 1]);
-        (uint256 amountOut, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-            amounts[amounts.length - 1],
-            referee != address(0)
-        );
+        (uint256 amountOut, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[amounts.length - 1], referee);
         TransferHelper.safeTransferETH(msg.sender, amountOut);
 
         if (feeAmount > 0) _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
@@ -206,7 +207,7 @@ contract FloozRouter is Ownable, Pausable {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
         amounts = _getAmountsIn(factory, amountOut, path);
-        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee != address(0));
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee);
         require(amounts[0].add(feeAmount).add(referralReward) <= msg.value, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
         IWETH(WETH).deposit{value: amounts[0]}();
         assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), amounts[0]));
@@ -227,7 +228,7 @@ contract FloozRouter is Ownable, Pausable {
         address referee
     ) external whenNotPaused isValidFactory(factory) isValidReferee(referee) {
         referee = _getReferee(referee);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee != address(0));
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee);
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), swapAmount);
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(msg.sender);
         _swapSupportingFeeOnTransferTokens(factory, path, msg.sender);
@@ -248,7 +249,7 @@ contract FloozRouter is Ownable, Pausable {
     ) external whenNotPaused isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         referee = _getReferee(referee);
         amounts = _getAmountsIn(factory, amountOut, path);
-        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee != address(0));
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee);
         require(amounts[0].add(feeAmount).add(referralReward) <= amountInMax, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
         _swap(factory, amounts, path, msg.sender);
@@ -270,10 +271,7 @@ contract FloozRouter is Ownable, Pausable {
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
         _swap(factory, amounts, path, address(this));
         IWETH(WETH).withdraw(amounts[amounts.length - 1]);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-            amounts[amounts.length - 1],
-            referee != address(0)
-        );
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[amounts.length - 1], referee);
 
         TransferHelper.safeTransferETH(msg.sender, swapAmount);
         if (feeAmount > 0) _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
@@ -287,7 +285,7 @@ contract FloozRouter is Ownable, Pausable {
     ) external payable whenNotPaused isValidFactory(factory) isValidReferee(referee) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee != address(0));
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee);
         IWETH(WETH).deposit{value: swapAmount}();
         assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), swapAmount));
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(msg.sender);
@@ -308,7 +306,7 @@ contract FloozRouter is Ownable, Pausable {
         return referralAnchor[sender];
     }
 
-    function _calculateFeesAndRewards(uint256 amount, bool isReferral)
+    function _calculateFeesAndRewards(uint256 amount, address referee)
         internal
         view
         returns (
@@ -324,8 +322,9 @@ contract FloozRouter is Ownable, Pausable {
         } else {
             uint256 fees = amount.mul(swapFee).div(FEE_DENOMINATOR);
             swapAmount = amount.sub(fees);
-            if (isReferral && referralsActivated) {
-                referralReward = fees.mul(referralRewardRate).div(FEE_DENOMINATOR);
+            if (referee != address(0) && referralsActivated) {
+                uint16 referralRate = customReferralRewardRate[referee] > 0 ? customReferralRewardRate[referee] : referralRewardRate;
+                referralReward = fees.mul(referralRate).div(FEE_DENOMINATOR);
                 feeAmount = amount.sub(swapAmount).sub(referralReward);
             } else {
                 referralReward = 0;
@@ -342,7 +341,7 @@ contract FloozRouter is Ownable, Pausable {
         saveYourAssetsToken.balanceOf(user) >= balanceThreshold ? 0 : swapFee;
     }
 
-    function updateSwapFee(uint8 newSwapFee) external onlyOwner {
+    function updateSwapFee(uint16 newSwapFee) external onlyOwner {
         swapFee = newSwapFee;
         emit SwapFeeUpdated(newSwapFee);
     }
@@ -365,6 +364,12 @@ contract FloozRouter is Ownable, Pausable {
     function updateReferralsActivated(bool newReferralsActivated) external onlyOwner {
         referralsActivated = newReferralsActivated;
         emit ReferralsActivatedUpdated(newReferralsActivated);
+    }
+
+    function updateCustomReferralRewardRate(address account, uint16 referralRate) external onlyOwner returns (uint256) {
+        require(referralRate < swapFee, "FloozRouter: Invalid referral rate");
+        customReferralRewardRate[account] = referralRate;
+        emit CustomReferralRewardRateUpdated(account, referralRate);
     }
 
     function getUserReferee(address user) external view returns (address) {
