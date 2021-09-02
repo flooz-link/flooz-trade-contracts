@@ -532,6 +532,117 @@ describe('FloozRouter', () => {
         })
     })
 
+    describe('Custom Referral Rate', () => {
+        const token0Amount = expandTo18Decimals(5)
+        const token1Amount = expandTo18Decimals(10)
+        const swapAmount = expandTo18Decimals(1)
+        const swapAmountAfterFee = ethers.utils.parseEther('0.995')
+        const referralReward = ethers.utils.parseEther('0.0005')
+        let token0reserve: BigNumber, token1reserve: BigNumber
+
+        async function addLiquidity(token0Amount: BigNumber, token1Amount: BigNumber) {
+            await token0.transfer(pair.address, token0Amount)
+            await token1.transfer(pair.address, token1Amount)
+            await pair.mint(wallet.address, overrides)
+        }
+
+        beforeEach(async () => {
+            await addLiquidity(token0Amount, token1Amount)
+            await token0.approve(router.address, ethers.constants.MaxUint256)
+            await token0.connect(syaHolder).approve(router.address, ethers.constants.MaxUint256)
+        })
+
+        it('default referral rate', async () => {
+            token0reserve = await token0.balanceOf(pair.address)
+            token1reserve = await token1.balanceOf(pair.address)
+            const expectedOutputAmount = BigNumber.from('1484004262505293768')
+
+            await expect(
+                router.swapExactTokensForTokens(
+                    factory.address,
+                    swapAmount,
+                    0,
+                    [token0.address, token1.address],
+                    syaHolder.address,
+                    overrides
+                )
+            )
+                .to.emit(token0, 'Transfer')
+                .withArgs(owner.address, pair.address, swapAmountAfterFee)
+                .to.emit(token0, 'Transfer')
+                .withArgs(owner.address, syaHolder.address, referralReward)
+                .to.emit(router, 'ReferralRewardPaid')
+                .withArgs(owner.address, syaHolder.address, token1.address, token0.address, referralReward)
+                .to.emit(token1, 'Transfer')
+                .withArgs(pair.address, owner.address, expectedOutputAmount)
+                .to.emit(pair, 'Sync')
+                .withArgs(token0reserve.add(swapAmountAfterFee), token1reserve.sub(expectedOutputAmount))
+                .to.emit(pair, 'Swap')
+                .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, owner.address)
+        })
+
+        it('custom referral rate', async () => {
+            token0reserve = await token0.balanceOf(pair.address)
+            token1reserve = await token1.balanceOf(pair.address)
+            let expectedOutputAmount = BigNumber.from('1471538920247152527')
+
+            let referralRewardUpdated = ethers.utils.parseEther('0.0025')
+            await router.updateCustomReferralRewardRate(syaHolder.address, 5000)
+
+            await expect(
+                router.swapExactTokensForTokens(
+                    factory.address,
+                    swapAmount,
+                    0,
+                    [token0.address, token1.address],
+                    syaHolder.address,
+                    overrides
+                )
+            )
+                .to.emit(token0, 'Transfer')
+                .withArgs(owner.address, pair.address, swapAmountAfterFee)
+                .to.emit(token0, 'Transfer')
+                .withArgs(owner.address, syaHolder.address, referralRewardUpdated)
+                .to.emit(router, 'ReferralRewardPaid')
+                .withArgs(owner.address, syaHolder.address, token1.address, token0.address, referralRewardUpdated)
+                .to.emit(token1, 'Transfer')
+                .withArgs(pair.address, owner.address, expectedOutputAmount)
+                .to.emit(pair, 'Sync')
+                .withArgs(token0reserve.add(swapAmountAfterFee), token1reserve.sub(expectedOutputAmount))
+                .to.emit(pair, 'Swap')
+                .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, owner.address)
+
+            await router.updateCustomReferralRewardRate(syaHolder.address, 2500)
+            referralRewardUpdated = ethers.utils.parseEther('0.00125')
+            expectedOutputAmount = BigNumber.from('1391724342670004276')
+            token0reserve = await token0.balanceOf(pair.address)
+            token1reserve = await token1.balanceOf(pair.address)
+
+            await expect(
+                router.swapExactTokensForTokens(
+                    factory.address,
+                    swapAmount,
+                    0,
+                    [token0.address, token1.address],
+                    syaHolder.address,
+                    overrides
+                )
+            )
+                .to.emit(token0, 'Transfer')
+                .withArgs(owner.address, pair.address, swapAmountAfterFee)
+                .to.emit(token0, 'Transfer')
+                .withArgs(owner.address, syaHolder.address, referralRewardUpdated)
+                .to.emit(router, 'ReferralRewardPaid')
+                .withArgs(owner.address, syaHolder.address, token1.address, token0.address, referralRewardUpdated)
+                .to.emit(token1, 'Transfer')
+                .withArgs(pair.address, owner.address, expectedOutputAmount)
+                .to.emit(pair, 'Sync')
+                .withArgs(token0reserve.add(swapAmountAfterFee), token1reserve.sub(expectedOutputAmount))
+                .to.emit(pair, 'Swap')
+                .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, owner.address)
+        })
+    })
+
     describe('Owner functions', () => {
         it('Cannot trade with paused router', async () => {
             const swapAmount = expandTo18Decimals(1)
@@ -638,8 +749,8 @@ describe('FloozRouter', () => {
                 .withArgs(wallet.address, 25)
         })
 
-        it('throws if trying to update custom referral fee that is higher then swap Fee', async () => {
-            await expect(router.updateCustomReferralRewardRate(wallet.address, 100)).to.be.revertedWith('FloozRouter: INVALID_RATE')
+        it('throws if trying to update custom referral fee that is too high', async () => {
+            await expect(router.updateCustomReferralRewardRate(wallet.address, 10001)).to.be.revertedWith('FloozRouter: INVALID_RATE')
         })
     })
 
