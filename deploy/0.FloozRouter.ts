@@ -36,7 +36,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     let swapFee = 50 // 0.5 %
     let referralReward = 1000 // 10 %
     let buybackRate = 5000 // 50%
-    let balanceThreshold = expandTo9Decimals(5000000000) //5b SYA
+    let balanceThreshold = expandTo9Decimals(50000000000) //5b SYA
+    
 
     const feeReceiver = await deploy('FeeReceiver', {
         from: deployer,
