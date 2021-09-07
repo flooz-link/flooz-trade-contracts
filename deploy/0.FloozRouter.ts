@@ -71,7 +71,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         ],
     })
 
-    await execute('ReferralRegistry', { from: deployer, log: true }, 'updateAnchorManager', floozRouter.address)
+    await execute('ReferralRegistry', { from: deployer, log: true }, 'updateAnchorManager', floozRouter.address, true)
 
     await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', contractOwner)
     //await execute('FloozRouter', { from: deployer, log: true }, 'transferOwnership', contractOwner)
