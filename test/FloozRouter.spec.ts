@@ -27,6 +27,7 @@ describe('FloozRouter', () => {
     let pancakeRouterV2: Contract
     let syaToken: Contract
     let DTT: Contract
+    let referralRegistry: Contract
 
     beforeEach(async function () {
         const fixture = await loadFixture(v2Fixture)
@@ -40,6 +41,7 @@ describe('FloozRouter', () => {
         WETHPair = fixture.WETHPair
         pancakeRouterV2 = fixture.pancakeRouterV2
         syaToken = fixture.syaToken
+        referralRegistry = fixture.referralRegistry
         DTT = fixture.dtt
 
         hre.tracer.nameTags[owner.address] = 'Owner'
@@ -751,6 +753,16 @@ describe('FloozRouter', () => {
 
         it('throws if trying to update custom referral fee that is too high', async () => {
             await expect(router.updateCustomReferralRewardRate(wallet.address, 10001)).to.be.revertedWith('FloozRouter: INVALID_RATE')
+        })
+
+        it('only owner can update referral registry', async () => {
+            await expect(router.connect(wallet).updateReferralRegistry(wallet.address)).to.be.revertedWith(
+                'Ownable: caller is not the owner'
+            )
+
+            await expect(await router.updateReferralRegistry(referralRegistry.address))
+                .to.emit(router, 'ReferralRegistryUpdated')
+                .withArgs(referralRegistry.address)
         })
     })
 

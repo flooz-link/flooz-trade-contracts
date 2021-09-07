@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./libraries/TransferHelper.sol";
 import "./libraries/PancakeLibrary.sol";
+import "./interfaces/IReferralRegistry.sol";
 import "./interfaces/IReferrals.sol";
 import "./interfaces/IWETH.sol";
 
@@ -18,11 +19,13 @@ contract FloozRouter is Ownable, Pausable {
     event FeeReceiverUpdated(address feeReceiver);
     event BalanceThresholdUpdated(uint256 balanceThreshold);
     event ReferralAnchorCreated(address indexed user, address indexed referee);
+    event ReferralRegistryUpdated(address referralRegistry);
     event CustomReferralRewardRateUpdated(address indexed account, uint16 referralRate);
     event ReferralRewardPaid(address from, address indexed to, address tokenOut, address tokenReward, uint256 amount);
 
     uint256 public constant FEE_DENOMINATOR = 10000;
     address public immutable WETH;
+    IReferralRegistry public referralRegistry;
     bytes internal pancakeInitCodeV1;
     bytes internal pancakeInitCodeV2;
     address public pancakeFactoryV1;
@@ -60,7 +63,8 @@ contract FloozRouter is Ownable, Pausable {
         address _pancakeFactoryV1,
         address _pancakeFactoryV2,
         bytes memory _pancakeInitCodeV1,
-        bytes memory _pancakeInitCodeV2
+        bytes memory _pancakeInitCodeV2,
+        IReferralRegistry _referralRegistry
     ) public {
         WETH = _WETH;
         swapFee = _swapFee;
@@ -73,6 +77,7 @@ contract FloozRouter is Ownable, Pausable {
         pancakeInitCodeV1 = _pancakeInitCodeV1;
         pancakeInitCodeV2 = _pancakeInitCodeV2;
         referralsActivated = true;
+        referralRegistry = _referralRegistry;
     }
 
     receive() external payable {}
@@ -299,11 +304,10 @@ contract FloozRouter is Ownable, Pausable {
 
     function _getReferee(address referee) internal returns (address) {
         address sender = msg.sender;
-        if (referralAnchor[sender] == address(0)) {
-            referralAnchor[sender] = referee;
-            emit ReferralAnchorCreated(sender, referee);
+        if (!referralRegistry.hasUserReferee(sender)) {
+            referralRegistry.createReferralAnchor(sender, referee);
         }
-        return referralAnchor[sender];
+        return referralRegistry.getUserReferee(sender);
     }
 
     function _calculateFeesAndRewards(uint256 amount, address referee)
@@ -366,6 +370,11 @@ contract FloozRouter is Ownable, Pausable {
         emit ReferralsActivatedUpdated(newReferralsActivated);
     }
 
+    function updateReferralRegistry(address newReferralRegistry) external onlyOwner {
+        referralRegistry = IReferralRegistry(newReferralRegistry);
+        emit ReferralRegistryUpdated(newReferralRegistry);
+    }
+
     function updateCustomReferralRewardRate(address account, uint16 referralRate) external onlyOwner returns (uint256) {
         require(referralRate <= FEE_DENOMINATOR, "FloozRouter: INVALID_RATE");
         customReferralRewardRate[account] = referralRate;
@@ -373,11 +382,11 @@ contract FloozRouter is Ownable, Pausable {
     }
 
     function getUserReferee(address user) external view returns (address) {
-        return referralAnchor[user];
+        return referralRegistry.getUserReferee(user);
     }
 
     function hasUserReferee(address user) external view returns (bool) {
-        return referralAnchor[user] != address(0);
+        return referralRegistry.hasUserReferee(user);
     }
 
     /**
