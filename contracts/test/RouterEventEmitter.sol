@@ -1,7 +1,6 @@
 pragma solidity =0.6.6;
 
 import "../interfaces/IFloozRouter.sol";
-import "hardhat/console.sol";
 
 contract RouterEventEmitter {
     event Amounts(uint256[] amounts);
