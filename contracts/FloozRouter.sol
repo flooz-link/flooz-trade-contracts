@@ -18,7 +18,6 @@ contract FloozRouter is Ownable, Pausable {
     event ReferralsActivatedUpdated(bool activated);
     event FeeReceiverUpdated(address feeReceiver);
     event BalanceThresholdUpdated(uint256 balanceThreshold);
-    event ReferralAnchorCreated(address indexed user, address indexed referee);
     event ReferralRegistryUpdated(address referralRegistry);
     event CustomReferralRewardRateUpdated(address indexed account, uint16 referralRate);
     event ReferralRewardPaid(address from, address indexed to, address tokenOut, address tokenReward, uint256 amount);

@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract ReferralRegistry is Ownable {
     event ReferralAnchorCreated(address indexed user, address indexed referee);
     event ReferralAnchorUpdated(address indexed user, address indexed referee);
-    event anchorManagerUpdated(address account, bool isManager);
+    event AnchorManagerUpdated(address account, bool isManager);
 
     // stores accounts which are allowed to create new anchors
     mapping(address => bool) public isAnchorManager;
