@@ -37,7 +37,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     let referralReward = 1000 // 10 %
     let buybackRate = 5000 // 50%
     let balanceThreshold = expandTo9Decimals(50000000000) //5b SYA
-    
 
     const feeReceiver = await deploy('FeeReceiver', {
         from: deployer,
@@ -46,7 +45,13 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         args: [pancakeRouterV2, syaToken, WETH, contractOwner, buybackRate],
     })
 
-    const FloozRouter = await deploy('FloozRouter', {
+    const referralRegistry = await deploy('ReferralRegistry', {
+        from: deployer,
+        log: true,
+        contract: 'ReferralRegistry',
+    })
+
+    const floozRouter = await deploy('FloozRouter', {
         from: deployer,
         log: true,
         proxy: { proxyContract: 'OpenZeppelinTransparentProxy' },
@@ -62,8 +67,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
             factoryV2,
             initCodeV1,
             initCodeV2,
+            referralRegistry.address,
         ],
     })
+
+    await execute('ReferralRegistry', { from: deployer, log: true }, 'updateAnchorManager', floozRouter.address)
 
     await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', contractOwner)
     //await execute('FloozRouter', { from: deployer, log: true }, 'transferOwnership', contractOwner)

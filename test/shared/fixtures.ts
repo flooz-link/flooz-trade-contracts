@@ -31,6 +31,7 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     let SYA = await ethers.getContractFactory('SYAMOCK')
     let WETH9 = await ethers.getContractFactory('WETH9')
     let FloozRouter = await ethers.getContractFactory('FloozRouter')
+    let ReferralRegistry = await ethers.getContractFactory('ReferralRegistry')
     let PancakeFactory = await ethers.getContractFactory('PancakeFactory')
     let RouterEventEmitter = await ethers.getContractFactory('RouterEventEmitter')
     let FeeReceiver = await ethers.getContractFactory('FeeReceiver')
@@ -55,7 +56,10 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     const revenueReceiver = wallet.address
     const feeReceiver = await FeeReceiver.deploy(pancakeRouterV2.address, syaToken.address, WETH.address, revenueReceiver, 5000)
 
-    // deploy SYP router
+    // deploy referral registry
+    const referralRegistry = await ReferralRegistry.deploy()
+
+    // deploy Flooz router
     const router = await FloozRouter.deploy(
         WETH.address,
         swapFee,
@@ -66,8 +70,12 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
         factoryV2.address,
         factoryV2.address,
         initHash,
-        initHash
+        initHash,
+        referralRegistry.address
     )
+
+    // grant flooz router anchor manager privilege to register anchors
+    await referralRegistry.updateAnchorManager(router.address, true)
 
     // event emitter for testing
     const routerEventEmitter = await RouterEventEmitter.deploy()
