@@ -27,7 +27,7 @@ contract ReferralRegistry is Ownable {
 
     function updateAnchorManager(address _anchorManager, bool _isManager) external onlyOwner {
         isAnchorManager[_anchorManager] = _isManager;
-        emit anchorManagerUpdated(_anchorManager, _isManager);
+        emit AnchorManagerUpdated(_anchorManager, _isManager);
     }
 
     function getUserReferee(address _user) external view returns (address) {
