@@ -303,7 +303,7 @@ contract FloozRouter is Ownable, Pausable {
 
     function _getReferee(address referee) internal returns (address) {
         address sender = msg.sender;
-        if (!referralRegistry.hasUserReferee(sender)) {
+        if (!referralRegistry.hasUserReferee(sender) && referee != address(0)) {
             referralRegistry.createReferralAnchor(sender, referee);
         }
         return referralRegistry.getUserReferee(sender);
