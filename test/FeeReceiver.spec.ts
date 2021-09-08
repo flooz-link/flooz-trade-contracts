@@ -12,7 +12,7 @@ const overrides = {
     gasLimit: 9999999,
 }
 
-describe.only('FeeReceiver', () => {
+describe('FeeReceiver', () => {
     const [owner, wallet, revenueReceiver] = waffle.provider.getWallets()
     const loadFixture = createFixtureLoader([owner, revenueReceiver])
 
@@ -95,7 +95,7 @@ describe.only('FeeReceiver', () => {
     describe('Convert Token to BNB', () => {
         it('converts tokens to BNB', async () => {
             await feeReceiver.updateRouterWhiteliste(pancakeRouterV2.address, true)
-            await syaToken.transfer(feeReceiver.address, expandTo18Decimals(2))
+            await syaToken.transfer(feeReceiver.address, expandTo9Decimals(2))
             await feeReceiver.convertToBnb(pancakeRouterV2.address, syaToken.address, false)
         })
     })
@@ -146,9 +146,9 @@ describe.only('FeeReceiver', () => {
                 'Ownable: caller is not the owner'
             )
 
-            await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(2))
+            await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(ethers.utils.parseEther('2.046515147306498939'))
 
-            await feeReceiver.withdrawBnb(owner.address, expandTo18Decimals(2))
+            await feeReceiver.withdrawBnb(owner.address, ethers.utils.parseEther('2.046515147306498939'))
             await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(0))
         })
 

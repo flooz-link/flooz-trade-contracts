@@ -1,6 +1,6 @@
 pragma solidity =0.6.6;
 
-interface ISaveYourPancakeRouter {
+interface IFloozRouter {
     function swapExactTokensForTokens(
         address factory,
         uint256 amountIn,

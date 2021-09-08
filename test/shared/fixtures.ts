@@ -1,6 +1,6 @@
 import { Contract, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
-import { expandTo18Decimals } from './utilities'
+import { expandTo18Decimals, expandTo9Decimals } from './utilities'
 
 const overrides = {
     gasLimit: 9999999,
@@ -20,26 +20,32 @@ interface V2Fixture {
     feeReceiver: Contract
     pancakeRouterV2: Contract
     syaPair: Contract
+    dtt: Contract
+    referralRegistry: Contract
 }
 
 export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     let swapFee = 50 // 0.5 %
-    let balanceThreshold = expandTo18Decimals(1000000000000) // 1000 SYA
+    let referralFee = 1000 // 10 % of swapFee
+    let balanceThreshold = expandTo9Decimals(100000000) // 1000 SYA
     let ERC20 = await ethers.getContractFactory('ERC20')
     let SYA = await ethers.getContractFactory('SYAMOCK')
     let WETH9 = await ethers.getContractFactory('WETH9')
-    let SaveYourPancakeRouter = await ethers.getContractFactory('SaveYourPancakeRouter')
+    let FloozRouter = await ethers.getContractFactory('FloozRouter')
+    let ReferralRegistry = await ethers.getContractFactory('ReferralRegistry')
     let PancakeFactory = await ethers.getContractFactory('PancakeFactory')
     let RouterEventEmitter = await ethers.getContractFactory('RouterEventEmitter')
     let FeeReceiver = await ethers.getContractFactory('FeeReceiver')
     let PancakeRouterV2 = await ethers.getContractFactory('PancakeRouter')
+    let Dtt = await ethers.getContractFactory('DeflatingERC20')
 
     // deploy tokens
     const tokenA = await ERC20.deploy(expandTo18Decimals(10000))
     const tokenB = await ERC20.deploy(expandTo18Decimals(10000))
-    const syaToken = await SYA.deploy(expandTo18Decimals(10000))
+    const syaToken = await SYA.deploy(expandTo9Decimals(10000))
     const WETH = await WETH9.deploy()
     const WETHPartner = await ERC20.deploy(expandTo18Decimals(10000))
+    const dtt = await Dtt.deploy(expandTo18Decimals(10000))
 
     // deploy Pancake V2
     const factoryV2 = await PancakeFactory.deploy(wallet.address)
@@ -51,10 +57,14 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     const revenueReceiver = wallet.address
     const feeReceiver = await FeeReceiver.deploy(pancakeRouterV2.address, syaToken.address, WETH.address, revenueReceiver, 5000)
 
-    // deploy SYP router
-    const router = await SaveYourPancakeRouter.deploy(
+    // deploy referral registry
+    const referralRegistry = await ReferralRegistry.deploy()
+
+    // deploy Flooz router
+    const router = await FloozRouter.deploy(
         WETH.address,
         swapFee,
+        referralFee,
         feeReceiver.address,
         balanceThreshold,
         syaToken.address,
@@ -62,8 +72,11 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
         factoryV2.address,
         initHash,
         initHash,
-        overrides
+        referralRegistry.address
     )
+
+    // grant flooz router anchor manager privilege to register anchors
+    await referralRegistry.updateAnchorManager(router.address, true)
 
     // event emitter for testing
     const routerEventEmitter = await RouterEventEmitter.deploy()
@@ -85,6 +98,8 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
     const syaPairAddress = await factoryV2.getPair(WETH.address, syaToken.address)
     const syaPair = await ethers.getContractAt('PancakePair', syaPairAddress)
 
+    await factoryV2.createPair(WETH.address, dtt.address)
+
     return {
         token0,
         token1,
@@ -99,5 +114,7 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
         feeReceiver,
         pancakeRouterV2,
         syaPair,
+        dtt,
+        referralRegistry,
     }
 }

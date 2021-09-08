@@ -1,6 +1,10 @@
 pragma solidity >=0.6.2;
 
+//SPDX-License-Identifier: Unlicense
+
 interface IPancakeRouter01 {
+    function factory() external pure returns (address);
+
     function WETH() external pure returns (address);
 
     function addLiquidity(
@@ -83,7 +87,6 @@ interface IPancakeRouter01 {
     ) external returns (uint256 amountToken, uint256 amountETH);
 
     function swapExactTokensForTokens(
-        address factory,
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,

@@ -1,4 +1,5 @@
 pragma solidity >=0.5.0;
+//SPDX-License-Identifier: Unlicense
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 interface IPancakePair {

@@ -11,7 +11,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log('\n======== DEPLOYMENT STARTED ========')
     console.log('Using Deployer account: ', deployer)
 
-    let WETH, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2, pancakeRouterV2, owner
+    let WETH, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2, pancakeRouterV2, contractOwner
 
     if (network.name == 'mainnet') {
         WETH = process.env.MAINNET_WETH
@@ -21,7 +21,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         initCodeV1 = '0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66'
         initCodeV2 = '0x00fb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5'
         pancakeRouterV2 = '0x10ED43C718714eb63d5aA57B78B54704E256024E'
-        owner = '0x616b9E8ebf9cAc11E751713f3d765Cc22cC7d1D5'
+        contractOwner = '0x616b9E8ebf9cAc11E751713f3d765Cc22cC7d1D5'
     } else {
         WETH = process.env.TESTNET_WETH
         syaToken = process.env.TESTNET_SYA
@@ -30,29 +30,51 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         initCodeV1 = '0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66'
         initCodeV2 = '0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66'
         pancakeRouterV2 = '0x10ED43C718714eb63d5aA57B78B54704E256024E'
-        owner = '0x616b9E8ebf9cAc11E751713f3d765Cc22cC7d1D5'
+        contractOwner = deployer
     }
 
     let swapFee = 50 // 0.5 %
+    let referralReward = 1000 // 10 %
     let buybackRate = 5000 // 50%
-    let balanceThreshold = expandTo9Decimals(5000000000) //5b SYA
+    let balanceThreshold = expandTo9Decimals(50000000000) //5b SYA
 
     const feeReceiver = await deploy('FeeReceiver', {
         from: deployer,
         log: true,
         contract: 'FeeReceiver',
-        args: [pancakeRouterV2, syaToken, WETH, owner, buybackRate],
+        args: [pancakeRouterV2, syaToken, WETH, contractOwner, buybackRate],
     })
 
-    const syaRouter = await deploy('SYARouter', {
+    const referralRegistry = await deploy('ReferralRegistry', {
         from: deployer,
         log: true,
-        contract: 'SaveYourPancakeRouter',
-        args: [WETH, swapFee, feeReceiver.address, balanceThreshold, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2],
+        contract: 'ReferralRegistry',
     })
 
-    await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', owner)
-    await execute('SYARouter', { from: deployer, log: true }, 'transferOwnership', owner)
+    const floozRouter = await deploy('FloozRouter', {
+        from: deployer,
+        log: true,
+        proxy: { proxyContract: 'OpenZeppelinTransparentProxy' },
+        contract: 'FloozRouter',
+        args: [
+            WETH,
+            swapFee,
+            referralReward,
+            feeReceiver.address,
+            balanceThreshold,
+            syaToken,
+            factoryV1,
+            factoryV2,
+            initCodeV1,
+            initCodeV2,
+            referralRegistry.address,
+        ],
+    })
+
+    await execute('ReferralRegistry', { from: deployer, log: true }, 'updateAnchorManager', floozRouter.address, true)
+
+    await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', contractOwner)
+    //await execute('FloozRouter', { from: deployer, log: true }, 'transferOwnership', contractOwner)
 }
 
 export default func
