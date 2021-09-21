@@ -5,14 +5,17 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@0x/contracts-utils/contracts/src/v06/LibBytesV06.sol";
 import "./libraries/TransferHelper.sol";
 import "./libraries/PancakeLibrary.sol";
 import "./interfaces/IReferralRegistry.sol";
 import "./interfaces/IReferrals.sol";
 import "./interfaces/IWETH.sol";
+import "./interfaces/IZerox.sol";
 
 contract FloozRouter is Ownable, Pausable {
     using SafeMath for uint256;
+    using LibBytesV06 for bytes;
     event SwapFeeUpdated(uint16 swapFee);
     event ReferralRewardRateUpdated(uint16 referralRewardRate);
     event ReferralsActivatedUpdated(bool activated);
@@ -36,6 +39,7 @@ contract FloozRouter is Ownable, Pausable {
     uint16 public swapFee;
     uint16 public referralRewardRate;
     bool public referralsActivated;
+    address payable public immutable zerox;
 
     // stores individual referral rates
     mapping(address => uint16) public customReferralRewardRate;
@@ -78,6 +82,7 @@ contract FloozRouter is Ownable, Pausable {
         pancakeInitCodeV2 = _pancakeInitCodeV2;
         referralsActivated = true;
         referralRegistry = _referralRegistry;
+        zerox = payable(0xDef1C0ded9bec7F1a1670819833240f027b25EfF);
     }
 
     receive() external payable {}
@@ -153,7 +158,7 @@ contract FloozRouter is Ownable, Pausable {
         address[] calldata path,
         address referee
     ) external whenNotPaused isValidFactory(factory) isValidReferee(referee) {
-        require(path[path.length - 1] == WETH, "FloozRouter: BNB has to be the last path item");
+        require(path[path.length - 1] == WETH, "FloozRouter: ETH has to be the last path item");
         referee = _getReferee(referee);
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amountIn);
         _swapSupportingFeeOnTransferTokens(factory, path, address(this));
@@ -337,6 +342,41 @@ contract FloozRouter is Ownable, Pausable {
         }
     }
 
+    /// @dev Forwards calls to the appropriate implementation contract.
+    fallback() external payable {
+        bytes4 selector = msg.data.readBytes4(0);
+        address impl = IZerox(zerox).getFunctionImplementation(selector);
+        if (impl == address(0)) {
+            _revertWithData(NotImplementedError(selector));
+        }
+
+        (bool success, bytes memory resultData) = impl.delegatecall(msg.data);
+        if (!success) {
+            _revertWithData(resultData);
+        }
+        _returnWithData(resultData);
+    }
+
+    function NotImplementedError(bytes4 selector) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(bytes4(keccak256("NotImplementedError(bytes4)")), selector);
+    }
+
+    /// @dev Revert with arbitrary bytes.
+    /// @param data Revert data.
+    function _revertWithData(bytes memory data) private pure {
+        assembly {
+            revert(add(data, 32), mload(data))
+        }
+    }
+
+    /// @dev Return with arbitrary bytes.
+    /// @param data Return data.
+    function _returnWithData(bytes memory data) private pure {
+        assembly {
+            return(add(data, 32), mload(data))
+        }
+    }
+
     function userAboveBalanceThreshold(address _account) public view returns (bool) {
         return saveYourAssetsToken.balanceOf(_account) >= balanceThreshold;
     }
@@ -390,9 +430,9 @@ contract FloozRouter is Ownable, Pausable {
     }
 
     /**
-     * @dev Withdraw BNB that somehow ended up in the contract.
+     * @dev Withdraw ETH that somehow ended up in the contract.
      */
-    function withdrawBnb(address payable to, uint256 amount) external onlyOwner {
+    function withdrawETH(address payable to, uint256 amount) external onlyOwner {
         to.transfer(amount);
     }
 
