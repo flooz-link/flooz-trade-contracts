@@ -51,10 +51,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         contract: 'ReferralRegistry',
     })
 
-    const floozRouter = await deploy('FloozRouter', {
+    const testRouter = await deploy('TestRouter', {
         from: deployer,
         log: true,
-        contract: 'FloozRouter',
+        contract: 'TestRouter',
         args: [
             WETH,
             swapFee,
@@ -70,10 +70,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         ],
     })
 
-    await execute('ReferralRegistry', { from: deployer, log: true }, 'updateAnchorManager', floozRouter.address, true)
+    await execute('ReferralRegistry', { from: deployer, log: true }, 'updateAnchorManager', testRouter.address, true)
 
-    await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', contractOwner)
-    await execute('FloozRouter', { from: deployer, log: true }, 'transferOwnership', contractOwner)
+    //await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', contractOwner)
+    //await execute('TestRouter', { from: deployer, log: true }, 'transferOwnership', contractOwner)
 }
 
 export default func

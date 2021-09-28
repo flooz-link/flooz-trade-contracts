@@ -17,38 +17,37 @@ contract FloozRouter is Ownable, Pausable {
     using SafeMath for uint256;
     using LibBytesV06 for bytes;
     event SwapFeeUpdated(uint16 swapFee);
+    event ReferralRegistryUpdated(address referralRegistry);
     event ReferralRewardRateUpdated(uint16 referralRewardRate);
     event ReferralsActivatedUpdated(bool activated);
-    event FeeReceiverUpdated(address feeReceiver);
+    event FeeReceiverUpdated(address payable feeReceiver);
     event BalanceThresholdUpdated(uint256 balanceThreshold);
-    event ReferralAnchorCreated(address indexed user, address indexed referee);
-    event ReferralRegistryUpdated(address referralRegistry);
     event CustomReferralRewardRateUpdated(address indexed account, uint16 referralRate);
     event ReferralRewardPaid(address from, address indexed to, address tokenOut, address tokenReward, uint256 amount);
+    event FeePaid(address token, uint256 amount);
+    event ForkCreated(address factory);
+    event ForkUpdated(address factory);
 
     uint256 public constant FEE_DENOMINATOR = 10000;
     address public immutable WETH;
     IReferralRegistry public referralRegistry;
-    bytes internal pancakeInitCodeV1;
-    bytes internal pancakeInitCodeV2;
-    address public pancakeFactoryV1;
-    address public pancakeFactoryV2;
     IERC20 public saveYourAssetsToken;
     uint256 public balanceThreshold;
-    address public feeReceiver;
+    address payable public feeReceiver;
     uint16 public swapFee;
     uint16 public referralRewardRate;
     bool public referralsActivated;
-    address payable public immutable zerox;
+    address payable public immutable zeroEx;
 
     // stores individual referral rates
     mapping(address => uint16) public customReferralRewardRate;
 
-    // stores the address that refered this user
-    mapping(address => address) public referralAnchor;
+    // stores fork informations
+    mapping(address => bool) public forkActivated;
+    mapping(address => bytes) public forkInitCode;
 
     modifier isValidFactory(address factory) {
-        require(factory == pancakeFactoryV1 || factory == pancakeFactoryV2, "FloozRouter: invalid factory");
+        require(forkActivated[factory], "FloozRouter: invalid factory");
         _;
     }
 
@@ -61,14 +60,11 @@ contract FloozRouter is Ownable, Pausable {
         address _WETH,
         uint16 _swapFee,
         uint16 _referralRewardRate,
-        address _feeReceiver,
+        address payable _feeReceiver,
         uint256 _balanceThreshold,
         IERC20 _saveYourAssetsToken,
-        address _pancakeFactoryV1,
-        address _pancakeFactoryV2,
-        bytes memory _pancakeInitCodeV1,
-        bytes memory _pancakeInitCodeV2,
-        IReferralRegistry _referralRegistry
+        IReferralRegistry _referralRegistry,
+        address payable _zeroEx
     ) public {
         WETH = _WETH;
         swapFee = _swapFee;
@@ -76,13 +72,9 @@ contract FloozRouter is Ownable, Pausable {
         feeReceiver = _feeReceiver;
         saveYourAssetsToken = _saveYourAssetsToken;
         balanceThreshold = _balanceThreshold;
-        pancakeFactoryV1 = _pancakeFactoryV1;
-        pancakeFactoryV2 = _pancakeFactoryV2;
-        pancakeInitCodeV1 = _pancakeInitCodeV1;
-        pancakeInitCodeV2 = _pancakeInitCodeV2;
         referralsActivated = true;
         referralRegistry = _referralRegistry;
-        zerox = payable(0xDef1C0ded9bec7F1a1670819833240f027b25EfF);
+        zeroEx = _zeroEx;
     }
 
     receive() external payable {}
@@ -113,7 +105,7 @@ contract FloozRouter is Ownable, Pausable {
     ) external payable whenNotPaused isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee);
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee, false);
         amounts = _getAmountsOut(factory, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         IWETH(WETH).deposit{value: swapAmount}();
@@ -165,7 +157,7 @@ contract FloozRouter is Ownable, Pausable {
         uint256 amountOut = IERC20(WETH).balanceOf(address(this));
         require(amountOut >= amountOutMin, "FloozRouter: slippage setting to low");
         IWETH(WETH).withdraw(amountOut);
-        (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountOut, referee);
+        (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountOut, referee, false);
         TransferHelper.safeTransferETH(msg.sender, amountWithdraw);
 
         if (feeAmount > 0) _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
@@ -179,7 +171,7 @@ contract FloozRouter is Ownable, Pausable {
         address referee
     ) external whenNotPaused isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         referee = _getReferee(referee);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee);
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee, false);
         amounts = _getAmountsOut(factory, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
@@ -202,7 +194,11 @@ contract FloozRouter is Ownable, Pausable {
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
         _swap(factory, amounts, path, address(this));
         IWETH(WETH).withdraw(amounts[amounts.length - 1]);
-        (uint256 amountOut, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[amounts.length - 1], referee);
+        (uint256 amountOut, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            amounts[amounts.length - 1],
+            referee,
+            false
+        );
         TransferHelper.safeTransferETH(msg.sender, amountOut);
 
         if (feeAmount > 0) _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
@@ -217,7 +213,7 @@ contract FloozRouter is Ownable, Pausable {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
         amounts = _getAmountsIn(factory, amountOut, path);
-        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee);
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee, false);
         require(amounts[0].add(feeAmount).add(referralReward) <= msg.value, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
         IWETH(WETH).deposit{value: amounts[0]}();
         assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), amounts[0]));
@@ -238,7 +234,7 @@ contract FloozRouter is Ownable, Pausable {
         address referee
     ) external whenNotPaused isValidFactory(factory) isValidReferee(referee) {
         referee = _getReferee(referee);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee);
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountIn, referee, false);
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), swapAmount);
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(msg.sender);
         _swapSupportingFeeOnTransferTokens(factory, path, msg.sender);
@@ -259,7 +255,7 @@ contract FloozRouter is Ownable, Pausable {
     ) external whenNotPaused isValidFactory(factory) isValidReferee(referee) returns (uint256[] memory amounts) {
         referee = _getReferee(referee);
         amounts = _getAmountsIn(factory, amountOut, path);
-        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee);
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee, false);
         require(amounts[0].add(feeAmount).add(referralReward) <= amountInMax, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
         _swap(factory, amounts, path, msg.sender);
@@ -281,7 +277,11 @@ contract FloozRouter is Ownable, Pausable {
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(factory, path[0], path[1]), amounts[0]);
         _swap(factory, amounts, path, address(this));
         IWETH(WETH).withdraw(amounts[amounts.length - 1]);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[amounts.length - 1], referee);
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            amounts[amounts.length - 1],
+            referee,
+            false
+        );
 
         TransferHelper.safeTransferETH(msg.sender, swapAmount);
         if (feeAmount > 0) _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
@@ -295,7 +295,7 @@ contract FloozRouter is Ownable, Pausable {
     ) external payable whenNotPaused isValidFactory(factory) isValidReferee(referee) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee);
+        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, referee, false);
         IWETH(WETH).deposit{value: swapAmount}();
         assert(IWETH(WETH).transfer(_pairFor(factory, path[0], path[1]), swapAmount));
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(msg.sender);
@@ -315,7 +315,11 @@ contract FloozRouter is Ownable, Pausable {
         return referralRegistry.getUserReferee(sender);
     }
 
-    function _calculateFeesAndRewards(uint256 amount, address referee)
+    function _calculateFeesAndRewards(
+        uint256 amount,
+        address referee,
+        bool reverseCalculation
+    )
         internal
         view
         returns (
@@ -329,8 +333,16 @@ contract FloozRouter is Ownable, Pausable {
             feeAmount = 0;
             swapAmount = amount;
         } else {
-            uint256 fees = amount.mul(swapFee).div(FEE_DENOMINATOR);
-            swapAmount = amount.sub(fees);
+            uint256 fees;
+            if (reverseCalculation) {
+                // assumes amount already includes fee
+                swapAmount = amount.mul(FEE_DENOMINATOR).div(FEE_DENOMINATOR.add(swapFee));
+                fees = amount.sub(swapAmount);
+            } else {
+                // assumes swap amount without fees is provided and adds x fee
+                fees = amount.mul(swapFee).div(FEE_DENOMINATOR); 
+                swapAmount = amount.sub(fees);
+            }
             if (referee != address(0) && referralsActivated) {
                 uint16 referralRate = customReferralRewardRate[referee] > 0 ? customReferralRewardRate[referee] : referralRewardRate;
                 referralReward = fees.mul(referralRate).div(FEE_DENOMINATOR);
@@ -345,7 +357,7 @@ contract FloozRouter is Ownable, Pausable {
     /// @dev Forwards calls to the appropriate implementation contract.
     fallback() external payable {
         bytes4 selector = msg.data.readBytes4(0);
-        address impl = IZerox(zerox).getFunctionImplementation(selector);
+        address impl = IZerox(zeroEx).getFunctionImplementation(selector);
         if (impl == address(0)) {
             _revertWithData(NotImplementedError(selector));
         }
@@ -377,6 +389,23 @@ contract FloozRouter is Ownable, Pausable {
         }
     }
 
+    function registerFork(address _factory, bytes calldata _initCode) external onlyOwner {
+        require(!forkActivated[_factory], "FloozRouter: ACTIVATED_FORK");
+        forkActivated[_factory] = true;
+        forkInitCode[_factory] = _initCode;
+        emit ForkCreated(_factory);
+    }
+
+    function updateFork(
+        address _factory,
+        bytes calldata _initCode,
+        bool _activated
+    ) external onlyOwner {
+        forkActivated[_factory] = _activated;
+        forkInitCode[_factory] = _initCode;
+        emit ForkUpdated(_factory);
+    }
+
     function userAboveBalanceThreshold(address _account) public view returns (bool) {
         return saveYourAssetsToken.balanceOf(_account) >= balanceThreshold;
     }
@@ -395,7 +424,7 @@ contract FloozRouter is Ownable, Pausable {
         emit ReferralRewardRateUpdated(newReferralRewardRate);
     }
 
-    function updateFeeReceiver(address newFeeReceiver) external onlyOwner {
+    function updateFeeReceiver(address payable newFeeReceiver) external onlyOwner {
         feeReceiver = newFeeReceiver;
         emit FeeReceiverUpdated(newFeeReceiver);
     }
@@ -433,19 +462,19 @@ contract FloozRouter is Ownable, Pausable {
      * @dev Withdraw ETH that somehow ended up in the contract.
      */
     function withdrawETH(address payable to, uint256 amount) external onlyOwner {
-        to.transfer(amount);
+        TransferHelper.safeTransferETH(to, amount);
     }
 
     /**
      * @dev Withdraw any erc20 compliant tokens that
      * somehow ended up in the contract.
      */
-    function withdrawErc20Token(
+    function withdrawERC20Token(
         address token,
         address to,
         uint256 amount
     ) external onlyOwner {
-        IERC20(token).transfer(to, amount);
+        TransferHelper.safeTransfer(token, to, amount);
     }
 
     function _withdrawFeesAndRewards(
@@ -545,7 +574,6 @@ contract FloozRouter is Ownable, Pausable {
         address tokenB
     ) internal view returns (address pair) {
         (address token0, address token1) = PancakeLibrary.sortTokens(tokenA, tokenB);
-        bytes memory initcode = factory == pancakeFactoryV1 ? pancakeInitCodeV1 : pancakeInitCodeV2;
         pair = address(
             uint256(
                 keccak256(
@@ -553,7 +581,7 @@ contract FloozRouter is Ownable, Pausable {
                         hex"ff",
                         factory,
                         keccak256(abi.encodePacked(token0, token1)),
-                        initcode // init code hash
+                        forkInitCode[factory] // init code hash
                     )
                 )
             )
@@ -566,5 +594,52 @@ contract FloozRouter is Ownable, Pausable {
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function executeZeroExTrade(
+        bytes memory _data,
+        address _sellCurrency,
+        address _buyCurrency,
+        address _referee
+    ) public payable {
+        _referee = _getReferee(_referee);
+        bytes4 selector = _data.readBytes4(0);
+        address impl = IZerox(zeroEx).getFunctionImplementation(selector);
+        if (impl == address(0)) {
+            _revertWithData(NotImplementedError(selector));
+        }
+
+        bool isAboveThreshold = userAboveBalanceThreshold(msg.sender);
+        // skip fees & rewards for GodMode Users
+        if (isAboveThreshold) {
+            (bool success, bytes memory resultData) = impl.delegatecall(_data);
+            if (!success) {
+                _revertWithData(resultData);
+            }
+        } else {
+            // if ETH in execute trade as router & distribute funds & fees
+            if (msg.value > 0) {
+                (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(msg.value, _referee, true);
+                _withdrawFeesAndRewards(address(0), _buyCurrency, _referee, feeAmount, referralReward);
+                (bool success, bytes memory resultData) = impl.call{value: swapAmount}(_data);
+                if (!success) {
+                    _revertWithData(resultData);
+                }
+                TransferHelper.safeTransfer(_buyCurrency, msg.sender, IERC20(_buyCurrency).balanceOf(address(this)));
+            } else {
+                uint256 balanceBefore;
+                uint256 balanceAfter;
+                balanceBefore = IERC20(_sellCurrency).balanceOf(msg.sender);
+                (bool success, bytes memory resultData) = impl.delegatecall(_data);
+                if (!success) {
+                    _revertWithData(resultData);
+                }
+                balanceAfter = IERC20(_sellCurrency).balanceOf(msg.sender);
+                require(balanceBefore > balanceAfter, "INVALID_TOKEN");
+                (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(balanceBefore.sub(balanceAfter), _referee, false);
+                _withdrawFeesAndRewards(_sellCurrency, _buyCurrency, _referee, feeAmount, referralReward);
+                _returnWithData(resultData);
+            }
+        }
     }
 }

@@ -8,16 +8,16 @@ contract ReferralRegistry is Ownable {
     event ReferralAnchorUpdated(address indexed user, address indexed referee);
     event anchorManagerUpdated(address account, bool isManager);
 
-    // stores accounts which are allowed to create new anchors
+    // stores addresses which are allowed to create new anchors
     mapping(address => bool) public isAnchorManager;
 
     // stores the address that referred a given user
     mapping(address => address) public referralAnchor;
 
     function createReferralAnchor(address _user, address _referee) external onlyAnchorManager {
-        require(referralAnchor[_user] == address(0), "ANCHOR_EXISTS");
+        require(referralAnchor[_user] == address(0), "ReferralRegistry: ANCHOR_EXISTS");
         referralAnchor[_user] = _referee;
-        emit ReferralAnchorUpdated(_user, _referee);
+        emit ReferralAnchorCreated(_user, _referee);
     }
 
     function updateReferralAnchor(address _user, address _referee) external onlyOwner {

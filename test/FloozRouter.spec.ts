@@ -672,19 +672,19 @@ describe('FloozRouter', () => {
             })
         })
 
-        it('only owner can withdraw BNB', async () => {
+        it('only owner can withdraw ETH', async () => {
             await wallet.sendTransaction({
                 to: router.address,
                 value: expandTo18Decimals(2),
             })
 
-            await expect(router.connect(wallet).withdrawBnb(owner.address, expandTo18Decimals(2))).to.be.revertedWith(
+            await expect(router.connect(wallet).withdrawETH(owner.address, expandTo18Decimals(2))).to.be.revertedWith(
                 'Ownable: caller is not the owner'
             )
 
             await expect(await ethers.provider.getBalance(router.address)).to.eq(expandTo18Decimals(2))
 
-            await router.withdrawBnb(owner.address, expandTo18Decimals(2))
+            await router.withdrawETH(owner.address, expandTo18Decimals(2))
             await expect(await ethers.provider.getBalance(router.address)).to.eq(expandTo18Decimals(0))
         })
 
