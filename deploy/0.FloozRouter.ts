@@ -15,6 +15,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const zeroEx = "0xdef1c0ded9bec7f1a1670819833240f027b25eff";
 
+<<<<<<< HEAD
   if (network.name == "mainnet") {
     WETH = process.env.MAINNET_WETH;
     syaToken = process.env.MAINNET_SYA;
@@ -34,12 +35,19 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     pancakeRouterV2 = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
     contractOwner = deployer;
   }
+=======
+    let swapFee = 50 // 0.5 %
+    let referralReward = 1000 // 10 %
+    let buybackRate = 5000 // 50%
+    let balanceThreshold = expandTo9Decimals(50000000000) //5b SYA
+>>>>>>> remotes/origin/master
 
   let swapFee = 50; // 0.5 %
   let referralReward = 1000; // 10 %
   let buybackRate = 5000; // 50%
   let balanceThreshold = expandTo9Decimals(50000000000); //5b SYA
 
+<<<<<<< HEAD
   const feeReceiver = await deploy("FeeReceiver", {
     from: deployer,
     log: true,
@@ -52,6 +60,39 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     log: true,
     contract: "ReferralRegistry",
   });
+=======
+    const referralRegistry = await deploy('ReferralRegistry', {
+        from: deployer,
+        log: true,
+        contract: 'ReferralRegistry',
+    })
+
+    const floozRouter = await deploy('FloozRouter', {
+        from: deployer,
+        log: true,
+        proxy: { proxyContract: 'OpenZeppelinTransparentProxy' },
+        contract: 'FloozRouter',
+        args: [
+            WETH,
+            swapFee,
+            referralReward,
+            feeReceiver.address,
+            balanceThreshold,
+            syaToken,
+            factoryV1,
+            factoryV2,
+            initCodeV1,
+            initCodeV2,
+            referralRegistry.address,
+        ],
+    })
+
+    await execute('ReferralRegistry', { from: deployer, log: true }, 'updateAnchorManager', floozRouter.address, true)
+
+    await execute('FeeReceiver', { from: deployer, log: true }, 'transferOwnership', contractOwner)
+    //await execute('FloozRouter', { from: deployer, log: true }, 'transferOwnership', contractOwner)
+}
+>>>>>>> remotes/origin/master
 
   const testRouter = await deploy("TestRouter", {
     from: deployer,

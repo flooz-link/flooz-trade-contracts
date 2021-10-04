@@ -11,6 +11,7 @@ import "hardhat-spdx-license-identifier";
 require("dotenv").config();
 
 module.exports = {
+<<<<<<< HEAD
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
@@ -19,6 +20,35 @@ module.exports = {
       accounts: {
         accountsBalance: "100000000000000000000000",
       },
+=======
+    defaultNetwork: 'hardhat',
+    networks: {
+        hardhat: {
+            live: false,
+            tags: ['local'],
+            accounts: {
+                accountsBalance: '100000000000000000000000',
+            },
+        },
+        testnet: {
+            url: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
+            chainId: 97,
+            accounts: [process.env.PRIVATE_KEY_TESTNET],
+        },
+        mainnet: {
+            live: true,
+            url: 'https://bsc-dataseed.binance.org/',
+            chainId: 56,
+            gasPrice: 5000000000,
+            accounts: [process.env.PRIVATE_KEY_MAINNET],
+        },
+        localhost: {
+            live: false,
+            tags: ['local'],
+            url: 'http://127.0.0.1:8547',
+            accounts: [process.env.PRIVATE_KEY_LOCALHOST],
+        },
+>>>>>>> remotes/origin/master
     },
     testnet: {
       url: "https://data-seed-prebsc-2-s2.binance.org:8545",
