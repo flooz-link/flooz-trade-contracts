@@ -27,6 +27,8 @@ describe("FloozRouter", () => {
   let pancakeRouterV2: Contract;
   let syaToken: Contract;
   let DTT: Contract;
+  let referralRegistry: Contract;
+  let factoryV2: Contract;
 
   beforeEach(async function () {
     const fixture = await loadFixture(v2Fixture);
@@ -41,6 +43,8 @@ describe("FloozRouter", () => {
     pancakeRouterV2 = fixture.pancakeRouterV2;
     syaToken = fixture.syaToken;
     DTT = fixture.dtt;
+    referralRegistry = fixture.referralRegistry;
+    factoryV2 = fixture.factoryV2;
 
     hre.tracer.nameTags[owner.address] = "Owner";
     hre.tracer.nameTags[wallet.address] = "Wallet";
@@ -78,7 +82,7 @@ describe("FloozRouter", () => {
             ethers.constants.AddressZero,
             overrides
           )
-        ).to.be.revertedWith("FloozRouter: invalid factory");
+        ).to.be.revertedWith("FloozRouter: INVALID_FACTORY");
       });
     });
 
@@ -789,6 +793,32 @@ describe("FloozRouter", () => {
       await expect(await router.updateCustomReferralRewardRate(wallet.address, 25))
         .to.emit(router, "CustomReferralRewardRateUpdated")
         .withArgs(wallet.address, 25);
+    });
+
+    it("only owner can update referral registry", async () => {
+      await expect(router.connect(wallet).updateReferralRegistry(referralRegistry.address)).to.be.revertedWith(
+        "Ownable: caller is not the owner"
+      );
+
+      await expect(await router.updateReferralRegistry(referralRegistry.address))
+        .to.emit(router, "ReferralRegistryUpdated")
+        .withArgs(referralRegistry.address);
+    });
+
+    it("only owner can update forks", async () => {
+      await expect(
+        router
+          .connect(wallet)
+          .updateFork(factoryV2.address, "0xc83a08e2be7ce8e8bfb5d13665a763dfdbc982313a2b209e7a0b426ee9775bfc", true)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+
+      await expect(
+        await router.updateFork(
+          factoryV2.address,
+          "0xc83a08e2be7ce8e8bfb5d13665a763dfdbc982313a2b209e7a0b426ee9775bfc",
+          true
+        )
+      ).to.emit(router, "ForkUpdated");
     });
 
     it("throws if trying to update custom referral fee that is too high", async () => {

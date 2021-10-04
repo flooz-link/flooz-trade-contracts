@@ -16,9 +16,6 @@ module.exports = {
     hardhat: {
       live: false,
       tags: ["local"],
-      accounts: {
-        accountsBalance: "100000000000000000000000",
-      },
     },
     testnet: {
       url: "https://data-seed-prebsc-2-s2.binance.org:8545",
@@ -29,7 +26,6 @@ module.exports = {
       live: true,
       url: "https://bsc-dataseed.binance.org/",
       chainId: 56,
-      gasPrice: 5000000000,
       accounts: [process.env.PRIVATE_KEY_MAINNET],
     },
     localhost: {

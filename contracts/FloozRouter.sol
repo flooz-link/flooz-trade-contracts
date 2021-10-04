@@ -12,11 +12,6 @@ import "./interfaces/IReferralRegistry.sol";
 import "./interfaces/IWETH.sol";
 import "./interfaces/IZerox.sol";
 
-/*
-    ToDo: 
-    – SYA Token not on all networks, logic to ignore SYA token
-*/
-
 contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     using SafeMath for uint256;
     using LibBytesV06 for bytes;
@@ -97,12 +92,12 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         feeReceiver = _feeReceiver;
         saveYourAssetsToken = _saveYourAssetsToken;
         balanceThreshold = _balanceThreshold;
-        referralsActivated = true;
         referralRegistry = _referralRegistry;
         zeroEx = _zeroEx;
+        referralsActivated = true;
     }
 
-    /// @dev execute swap direct on Uniswap/Pancake & simular forks
+    /// @dev execute swap directly on Uniswap/Pancake & simular forks
     /// @param fork fork used to execute swap
     /// @param amountOutMin minimum tokens to receive
     /// @param path Sell path.
@@ -132,7 +127,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    /// @dev execute swap direct on Uniswap/Pancake/...
+    /// @dev execute swap directly on Uniswap/Pancake/...
     /// @param fork fork used to execute swap
     /// @param amountIn amount of tokensIn
     /// @param amountOutMin minimum tokens to receive
@@ -150,7 +145,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amountIn);
         _swapSupportingFeeOnTransferTokens(fork, path, address(this));
         uint256 amountOut = IERC20(WETH).balanceOf(address(this));
-        require(amountOut >= amountOutMin, "FloozRouter: slippage setting to low");
+        require(amountOut >= amountOutMin, "FloozRouter: LOW_SLIPPAGE");
         IWETH(WETH).withdraw(amountOut);
         (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
             amountOut,
@@ -163,7 +158,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
-    /// @dev execute swap direct on Uniswap/Pancake/...
+    /// @dev execute swap directly on Uniswap/Pancake/...
     /// @param fork fork used to execute swap
     /// @param amountIn amount if tokens In
     /// @param amountOutMin minimum tokens to receive
@@ -191,7 +186,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         if (feeAmount > 0) _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
     }
 
-    /// @dev execute swap direct on Uniswap/Pancake/...
+    /// @dev execute swap directly on Uniswap/Pancake/...
     /// @param fork fork used to execute swap
     /// @param amountIn amount if tokens In
     /// @param amountOutMin minimum tokens to receive
@@ -223,7 +218,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
-    /// @dev execute swap direct on Uniswap/Pancake/...
+    /// @dev execute swap directly on Uniswap/Pancake/...
     /// @param fork fork used to execute swap
     /// @param amountOut expected amount of tokens out
     /// @param path Sell path.
@@ -252,7 +247,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
             TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0].add(feeAmount).add(referralReward));
     }
 
-    /// @dev execute swap direct on Uniswap/Pancake/...
+    /// @dev execute swap directly on Uniswap/Pancake/...
     /// @param fork fork used to execute swap
     /// @param amountIn amount if tokens In
     /// @param amountOutMin minimum tokens to receive
@@ -282,7 +277,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         if (feeAmount > 0) _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
     }
 
-    /// @dev execute swap direct on Uniswap/Pancake/...
+    /// @dev execute swap directly on Uniswap/Pancake/...
     /// @param fork fork used to execute swap
     /// @param amountOut expected tokens to receive
     /// @param amountInMax maximum tokens to send
@@ -306,7 +301,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         if (feeAmount > 0) _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
     }
 
-    /// @dev execute swap direct on Uniswap/Pancake/...
+    /// @dev execute swap directly on Uniswap/Pancake/...
     /// @param fork fork used to execute swap
     /// @param amountOut expected tokens to receive
     /// @param amountInMax maximum tokens to send
@@ -338,7 +333,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
-    /// @dev execute swap direct on Uniswap/Pancake/...
+    /// @dev execute swap directly on Uniswap/Pancake/...
     /// @param fork fork used to execute swap
     /// @param amountOutMin minimum expected tokens to receive
     /// @param path Sell path.
@@ -430,46 +425,38 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @dev Fallback function to execute swaps directly on 0x for users that don't pay a fee
+    /// @dev params as of API documentation from 0x API (https://0x.org/docs/api#response-1)
     fallback() external payable {
         require(userAboveBalanceThreshold(msg.sender), "FloozRouter: FORBIDDEN");
         bytes4 selector = msg.data.readBytes4(0);
         address impl = IZerox(zeroEx).getFunctionImplementation(selector);
-        if (impl == address(0)) {
-            _revertWithData(NotImplementedError(selector));
-        }
+        require(impl != address(0), "FloozRouter: NO_IMPLEMENTATION");
 
-        (bool success, bytes memory resultData) = impl.delegatecall(msg.data);
-        if (!success) {
-            _revertWithData(resultData);
-        }
-        _returnWithData(resultData);
+        (bool success, ) = impl.delegatecall(msg.data);
+        require(success, "FloozRouter: REVERTED");
     }
 
     /// @dev Executes a swap on 0x API
     /// @param data calldata expected by data field on 0x API (https://0x.org/docs/api#response-1)
-    /// @param sellCurrency the address of currency to sell – 0x address for ETH
-    /// @param buyCurrency the address of currency to buy – 0x address for ETH
+    /// @param tokenOut the address of currency to sell – 0x address for ETH
+    /// @param tokenIn the address of currency to buy – 0x address for ETH
     /// @param referee address of referee for msg.sender, 0x adress if none
     function executeZeroExSwap(
         bytes calldata data,
-        address sellCurrency,
-        address buyCurrency,
+        address tokenOut,
+        address tokenIn,
         address referee
     ) external payable nonReentrant whenNotPaused isValidReferee(referee) {
         referee = _getReferee(referee);
         bytes4 selector = data.readBytes4(0);
         address impl = IZerox(zeroEx).getFunctionImplementation(selector);
-        if (impl == address(0)) {
-            _revertWithData(NotImplementedError(selector));
-        }
+        require(impl != address(0), "FloozRouter: NO_IMPLEMENTATION");
 
         bool isAboveThreshold = userAboveBalanceThreshold(msg.sender);
-        // skip fees & rewards for GodMode Users
+        // skip fees & rewards for god mode users
         if (isAboveThreshold) {
-            (bool success, bytes memory resultData) = impl.delegatecall(data);
-            if (!success) {
-                _revertWithData(resultData);
-            }
+            (bool success, ) = impl.delegatecall(data);
+            require(success, "FloozRouter: REVERTED");
         } else {
             // if ETH in execute trade as router & distribute funds & fees
             if (msg.value > 0) {
@@ -478,29 +465,22 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
                     referee,
                     true
                 );
-                _withdrawFeesAndRewards(address(0), buyCurrency, referee, feeAmount, referralReward);
-                (bool success, bytes memory resultData) = impl.call{value: swapAmount}(data);
-                if (!success) {
-                    _revertWithData(resultData);
-                }
-                TransferHelper.safeTransfer(buyCurrency, msg.sender, IERC20(buyCurrency).balanceOf(address(this)));
+                _withdrawFeesAndRewards(address(0), tokenIn, referee, feeAmount, referralReward);
+                (bool success, ) = impl.call{value: swapAmount}(data);
+                require(success, "FloozRouter: REVERTED");
+                TransferHelper.safeTransfer(tokenIn, msg.sender, IERC20(tokenIn).balanceOf(address(this)));
             } else {
-                uint256 balanceBefore;
-                uint256 balanceAfter;
-                balanceBefore = IERC20(sellCurrency).balanceOf(msg.sender);
-                (bool success, bytes memory resultData) = impl.delegatecall(data);
-                if (!success) {
-                    _revertWithData(resultData);
-                }
-                balanceAfter = IERC20(sellCurrency).balanceOf(msg.sender);
+                uint256 balanceBefore = IERC20(tokenOut).balanceOf(msg.sender);
+                (bool success, ) = impl.delegatecall(data);
+                require(success, "FloozRouter: REVERTED");
+                uint256 balanceAfter = IERC20(tokenOut).balanceOf(msg.sender);
                 require(balanceBefore > balanceAfter, "INVALID_TOKEN");
                 (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
                     balanceBefore.sub(balanceAfter),
                     referee,
                     false
                 );
-                _withdrawFeesAndRewards(sellCurrency, buyCurrency, referee, feeAmount, referralReward);
-                _returnWithData(resultData);
+                _withdrawFeesAndRewards(tokenOut, tokenIn, referee, feeAmount, referralReward);
             }
         }
     }
@@ -571,69 +551,75 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         emit ForkUpdated(_factory);
     }
 
+    /// @dev returns if a users is above the SYA threshold and can swap without fees
     function userAboveBalanceThreshold(address _account) public view returns (bool) {
         return saveYourAssetsToken.balanceOf(_account) >= balanceThreshold;
     }
 
+    /// @dev returns the fee nominator for a given user
     function getUserFee(address user) public view returns (uint256) {
         saveYourAssetsToken.balanceOf(user) >= balanceThreshold ? 0 : swapFee;
     }
 
+    /// @dev lets the admin update the swapFee nominator
     function updateSwapFee(uint16 newSwapFee) external onlyOwner {
         swapFee = newSwapFee;
         emit SwapFeeUpdated(newSwapFee);
     }
 
+    /// @dev lets the admin update the referral reward rate
     function updateReferralRewardRate(uint16 newReferralRewardRate) external onlyOwner {
         referralRewardRate = newReferralRewardRate;
         emit ReferralRewardRateUpdated(newReferralRewardRate);
     }
 
+    /// @dev lets the admin update which address receives the protocol fees
     function updateFeeReceiver(address payable newFeeReceiver) external onlyOwner {
         feeReceiver = newFeeReceiver;
         emit FeeReceiverUpdated(newFeeReceiver);
     }
 
+    /// @dev lets the admin update the SYA balance threshold, which activates feeless trading for users
     function updateBalanceThreshold(uint256 newBalanceThreshold) external onlyOwner {
         balanceThreshold = newBalanceThreshold;
         emit BalanceThresholdUpdated(balanceThreshold);
     }
 
+    /// @dev lets the admin update the status of the referral system
     function updateReferralsActivated(bool newReferralsActivated) external onlyOwner {
         referralsActivated = newReferralsActivated;
         emit ReferralsActivatedUpdated(newReferralsActivated);
     }
 
+    /// @dev lets the admin set a new referral registry
     function updateReferralRegistry(address newReferralRegistry) external onlyOwner {
         referralRegistry = IReferralRegistry(newReferralRegistry);
         emit ReferralRegistryUpdated(newReferralRegistry);
     }
 
+    /// @dev lets the admin set a custom referral rate
     function updateCustomReferralRewardRate(address account, uint16 referralRate) external onlyOwner returns (uint256) {
         require(referralRate <= FEE_DENOMINATOR, "FloozRouter: INVALID_RATE");
         customReferralRewardRate[account] = referralRate;
         emit CustomReferralRewardRateUpdated(account, referralRate);
     }
 
+    /// @dev returns the referee for a given user – 0x address if none
     function getUserReferee(address user) external view returns (address) {
         return referralRegistry.getUserReferee(user);
     }
 
+    /// @dev returns if the given user has been referred or not
     function hasUserReferee(address user) external view returns (bool) {
         return referralRegistry.hasUserReferee(user);
     }
 
-    /**
-     * @dev Withdraw ETH that somehow ended up in the contract.
-     */
+    /// @dev lets the admin withdraw ETH from the contract.
     function withdrawETH(address payable to, uint256 amount) external onlyOwner {
         TransferHelper.safeTransferETH(to, amount);
     }
 
-    /**
-     * @dev Withdraw any erc20 compliant tokens that
-     * somehow ended up in the contract.
-     */
+    /// @dev lets the admin withdraw ERC20s from the contract.
     function withdrawERC20Token(
         address token,
         address to,
@@ -642,6 +628,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         TransferHelper.safeTransfer(token, to, amount);
     }
 
+    /// @dev distributes fees & referral rewards to users
     function _withdrawFeesAndRewards(
         address tokenReward,
         address tokenOut,
@@ -664,7 +651,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
+    /// @dev given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
     function _getAmountOut(
         uint256 amountIn,
         uint256 reserveIn,
@@ -678,7 +665,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         amountOut = numerator / denominator;
     }
 
-    // given an output amount of an asset and pair reserves, returns a required input amount of the other asset
+    /// @dev given an output amount of an asset and pair reserves, returns a required input amount of the other asset
     function _getAmountIn(
         uint256 amountOut,
         uint256 reserveIn,
@@ -691,7 +678,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         amountIn = (numerator / denominator).add(1);
     }
 
-    // performs chained getAmountOut calculations on any number of pairs
+    /// @dev performs chained getAmountOut calculations on any number of pairs
     function _getAmountsOut(
         address fork,
         uint256 amountIn,
@@ -706,7 +693,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    // performs chained getAmountIn calculations on any number of pairs
+    /// @dev performs chained getAmountIn calculations on any number of pairs
     function _getAmountsIn(
         address factory,
         uint256 amountOut,
@@ -721,7 +708,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    // fetches and sorts the reserves for a pair
+    /// @dev fetches and sorts the reserves for a pair
     function _getReserves(
         address factory,
         address tokenA,
@@ -732,7 +719,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
     }
 
-    // calculates the CREATE2 address for a pair without making any external calls
+    /// @dev calculates the CREATE2 address for a pair without making any external calls
     function _pairFor(
         address factory,
         address tokenA,
@@ -753,30 +740,12 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         );
     }
 
-    function NotImplementedError(bytes4 selector) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(bytes4(keccak256("NotImplementedError(bytes4)")), selector);
-    }
-
-    /// @dev Revert with arbitrary bytes.
-    /// @param data Revert data.
-    function _revertWithData(bytes memory data) private pure {
-        assembly {
-            revert(add(data, 32), mload(data))
-        }
-    }
-
-    /// @dev Return with arbitrary bytes.
-    /// @param data Return data.
-    function _returnWithData(bytes memory data) private pure {
-        assembly {
-            return(add(data, 32), mload(data))
-        }
-    }
-
+    /// @dev lets the admin pause this contract
     function pause() external onlyOwner {
         _pause();
     }
 
+    /// @dev lets the admin unpause this contract
     function unpause() external onlyOwner {
         _unpause();
     }
@@ -785,12 +754,12 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     receive() external payable {}
 
     modifier isValidFork(address factory) {
-        require(forkActivated[factory], "FloozRouter: invalid factory");
+        require(forkActivated[factory], "FloozRouter: INVALID_FACTORY");
         _;
     }
 
     modifier isValidReferee(address referee) {
-        require(msg.sender != referee, "FloozRouter: self referral");
+        require(msg.sender != referee, "FloozRouter: SELF_REFERRAL");
         _;
     }
 }

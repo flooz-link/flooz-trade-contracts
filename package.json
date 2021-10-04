@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@0x/contracts-utils": "^4.7.18",
+    "@float-capital/solidity-coverage": "^0.7.17",
     "@nomiclabs/hardhat-truffle5": "^2.0.0",
     "@nomiclabs/hardhat-web3": "^2.0.0",
     "@pancakeswap-libs/pancake-swap-core": "^0.1.0",
