@@ -1,3 +1,4 @@
+import { parseEther } from "@ethersproject/units";
 import { Contract, Wallet } from "ethers";
 import { ethers } from "hardhat";
 import { expandTo18Decimals, expandTo9Decimals } from "./utilities";
@@ -24,11 +25,11 @@ interface V2Fixture {
   referralRegistry: Contract;
 }
 
-export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
+export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<V2Fixture> {
   const zeroExContract = "0xdef1c0ded9bec7f1a1670819833240f027b25eff";
   let swapFee = 50; // 0.5 %
   let referralFee = 1000; // 10 % of swapFee
-  let balanceThreshold = expandTo9Decimals(100000000); // 1000 SYA
+  let balanceThreshold = expandTo9Decimals(5000); // 5000 SYA
   let ERC20 = await ethers.getContractFactory("ERC20");
   let SYA = await ethers.getContractFactory("SYAMOCK");
   let WETH9 = await ethers.getContractFactory("WETH9");
@@ -41,18 +42,27 @@ export async function v2Fixture([wallet]: Wallet[]): Promise<V2Fixture> {
   let Dtt = await ethers.getContractFactory("DeflatingERC20");
 
   // deploy tokens
-  const tokenA = await ERC20.deploy(expandTo18Decimals(10000));
-  const tokenB = await ERC20.deploy(expandTo18Decimals(10000));
-  const syaToken = await SYA.deploy(expandTo9Decimals(10000));
+  const tokenA = await ERC20.deploy(expandTo18Decimals(10000000));
+  const tokenB = await ERC20.deploy(expandTo18Decimals(10000000));
+  await tokenA.transfer(user.address, expandTo18Decimals(1000));
+  await tokenB.transfer(user.address, expandTo18Decimals(1000));
+  await tokenA.transfer(godModeUser.address, expandTo18Decimals(1000));
+  await tokenB.transfer(godModeUser.address, expandTo18Decimals(1000));
+  const syaToken = await SYA.deploy(expandTo9Decimals(100000000000));
+  await syaToken.transfer(godModeUser.address, expandTo9Decimals(60000));
   const WETH = await WETH9.deploy();
-  const WETHPartner = await ERC20.deploy(expandTo18Decimals(10000));
-  const dtt = await Dtt.deploy(expandTo18Decimals(10000));
+  const WETHPartner = await ERC20.deploy(expandTo18Decimals(10000000));
+  await WETHPartner.transfer(user.address, expandTo18Decimals(1000));
+  await WETHPartner.transfer(godModeUser.address, expandTo18Decimals(1000));
+  const dtt = await Dtt.deploy(expandTo18Decimals(10000000));
+  await dtt.transfer(user.address, expandTo18Decimals(1000));
+  await dtt.transfer(godModeUser.address, expandTo18Decimals(1000));
 
   // deploy Pancake V2
   const factoryV2 = await PancakeFactory.deploy(wallet.address);
   const initHash = await factoryV2.INIT_CODE_PAIR_HASH();
   const pancakeRouterV2 = await PancakeRouterV2.deploy(factoryV2.address, WETH.address);
-  console.log("INIT_CODE_PAIR_HASH:", initHash);
+  //console.log("INIT_CODE_PAIR_HASH:", initHash);
 
   // deploy Fee Receiver
   const revenueReceiver = wallet.address;

@@ -16,6 +16,10 @@ module.exports = {
     hardhat: {
       live: false,
       tags: ["local"],
+      allowUnlimitedContractSize: true,
+      accounts: {
+        accountsBalance: "1000000000000000000000000",
+      },
     },
     testnet: {
       url: "https://data-seed-prebsc-2-s2.binance.org:8545",
@@ -52,7 +56,7 @@ module.exports = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 200,
+            runs: 400,
           },
         },
       },
@@ -61,12 +65,18 @@ module.exports = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 200,
+            runs: 400,
           },
         },
       },
       {
         version: "0.5.16",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 400,
+          },
+        },
       },
     ],
   },

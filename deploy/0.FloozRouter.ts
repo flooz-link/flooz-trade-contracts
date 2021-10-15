@@ -53,10 +53,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     contract: "ReferralRegistry",
   });
 
-  const floozRouter = await deploy("FloozRouter", {
+  const floozRouter = await deploy("TestRouter", {
     from: deployer,
     log: true,
-    contract: "FloozRouter",
+    contract: "TestRouter",
     args: [
       WETH,
       swapFee,
@@ -78,8 +78,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // register Pancakeswap V2
   await execute("TestRouter", { from: deployer, log: true }, "registerFork", factoryV2, initCodeV2);
 
-  await execute("FeeReceiver", { from: deployer, log: true }, "transferOwnership", contractOwner);
-  await execute("TestRouter", { from: deployer, log: true }, "transferOwnership", contractOwner);
+  //await execute("FeeReceiver", { from: deployer, log: true }, "transferOwnership", contractOwner);
+  //await execute("TestRouter", { from: deployer, log: true }, "transferOwnership", contractOwner);
 };
 
 export default func;

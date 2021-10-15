@@ -1,10 +1,11 @@
 import chai, { expect } from "chai";
-import { BigNumber, Contract } from "ethers";
+import { BigNumber, constants, Contract } from "ethers";
 import { solidity, createFixtureLoader } from "ethereum-waffle";
 import hre, { ethers, waffle } from "hardhat";
 
 import { expandTo18Decimals, expandTo9Decimals } from "./shared/utilities";
 import { v2Fixture } from "./shared/fixtures";
+import { parseEther } from "@ethersproject/units";
 
 chai.use(solidity);
 
@@ -13,8 +14,11 @@ const overrides = {
 };
 
 describe("FloozRouter", () => {
-  const [owner, wallet, syaHolder] = waffle.provider.getWallets();
-  const loadFixture = createFixtureLoader([owner]);
+  const [owner, wallet, user, godModeUser] = waffle.provider.getWallets();
+  const loadFixture = createFixtureLoader([owner, user, godModeUser]);
+
+  const FEE_NUMERATOR = BigNumber.from(50);
+  const FEE_DENOMINATOR = BigNumber.from(10000);
 
   let token0: Contract;
   let token1: Contract;
@@ -29,6 +33,7 @@ describe("FloozRouter", () => {
   let DTT: Contract;
   let referralRegistry: Contract;
   let factoryV2: Contract;
+  let feeReceiver: Contract;
 
   beforeEach(async function () {
     const fixture = await loadFixture(v2Fixture);
@@ -45,6 +50,7 @@ describe("FloozRouter", () => {
     DTT = fixture.dtt;
     referralRegistry = fixture.referralRegistry;
     factoryV2 = fixture.factoryV2;
+    feeReceiver = fixture.feeReceiver;
 
     hre.tracer.nameTags[owner.address] = "Owner";
     hre.tracer.nameTags[wallet.address] = "Wallet";
@@ -56,19 +62,48 @@ describe("FloozRouter", () => {
     hre.tracer.nameTags[WETHPair.address] = "WETHPair";
     hre.tracer.nameTags[WETH.address] = "WETH";
     hre.tracer.nameTags[WETHPartner.address] = "WETHPartner";
+    hre.tracer.nameTags[godModeUser.address] = "godModeUser/Referee";
+    hre.tracer.nameTags[feeReceiver.address] = "feeReceiver";
   });
 
   afterEach(async function () {
     expect(await ethers.provider.getBalance(router.address)).to.eq(ethers.constants.Zero);
   });
 
-  describe("Swaps", () => {
-    async function addLiquidity(token0Amount: BigNumber, token1Amount: BigNumber) {
-      await token0.transfer(pair.address, token0Amount);
-      await token1.transfer(pair.address, token1Amount);
-      await pair.mint(wallet.address, overrides);
+  async function addLiquidityTokenPair(token0Amount: BigNumber, token1Amount: BigNumber) {
+    const liquidityBalance = await pair.balanceOf(owner.address);
+
+    // burn existing liquidity, if minted earlier
+    if (liquidityBalance.gt(BigNumber.from(0))) {
+      await pair.transfer(pair.address, liquidityBalance);
+      await pair.burn(owner.address);
     }
 
+    const token0Bal = await token0.balanceOf(pair.address);
+    const token1Bal = await token1.balanceOf(pair.address);
+    await token0.transfer(pair.address, token0Amount.sub(token0Bal));
+    await token1.transfer(pair.address, token1Amount.sub(token1Bal));
+    await pair.mint(owner.address, overrides);
+  }
+
+  async function addLiquidityWETHPair(WETHPartnerAmount: BigNumber, ETHAmount: BigNumber) {
+    const liquidityBalance = await WETHPair.balanceOf(owner.address);
+
+    // burn existing liquidity, if minted earlier
+    if (liquidityBalance.gt(BigNumber.from(0))) {
+      await WETHPair.transfer(WETHPair.address, liquidityBalance);
+      await WETHPair.burn(owner.address);
+    }
+
+    const tokenPartnerBal = await WETHPartner.balanceOf(WETHPair.address);
+    const tokenWETHBal = await WETH.balanceOf(WETHPair.address);
+    await WETHPartner.transfer(WETHPair.address, WETHPartnerAmount.sub(tokenPartnerBal));
+    await WETH.deposit({ value: ETHAmount });
+    await WETH.transfer(WETHPair.address, ETHAmount.sub(tokenWETHBal));
+    await WETHPair.mint(owner.address, overrides);
+  }
+
+  describe("Swaps", () => {
     describe("factory", () => {
       const swapAmount = expandTo18Decimals(1);
 
@@ -87,123 +122,210 @@ describe("FloozRouter", () => {
     });
 
     describe("swapExactTokensForTokens", () => {
-      const token0Amount = expandTo18Decimals(5);
-      const token1Amount = expandTo18Decimals(10);
+      const token0Amount = expandTo18Decimals(1000000);
+      const token1Amount = expandTo18Decimals(2000000);
       const swapAmount = expandTo18Decimals(1);
-      const swapAmountAfterFee = ethers.utils.parseEther("0.995");
-      const referralReward = ethers.utils.parseEther("0.0005");
-      const expectedOutputAmount = BigNumber.from("1656254367429354548");
-      const expectedOutputAmountSyaHolder = BigNumber.from("1525777466624074950");
+      const swapAmountAfterFee = swapAmount.sub(swapAmount.mul(FEE_NUMERATOR).div(FEE_DENOMINATOR));
+      const feeAmount = swapAmount.mul(FEE_NUMERATOR).div(FEE_DENOMINATOR);
+      const referralAmount = feeAmount.mul(1000).div(FEE_DENOMINATOR);
+      const feeReceiverAmount = feeAmount.mul(9000).div(FEE_DENOMINATOR);
+      const expectedOutputAmountgodModeUser = BigNumber.from("1994998009989485035");
+      const expectedOutputAmount = BigNumber.from("1985023029839830096");
+      const amountMin = BigNumber.from("1980000000000000000");
       let token0reserve: BigNumber, token1reserve: BigNumber;
 
       beforeEach(async () => {
-        await addLiquidity(token0Amount, token1Amount);
+        await addLiquidityTokenPair(token0Amount, token1Amount);
         await token0.approve(router.address, ethers.constants.MaxUint256);
-        await token0.connect(syaHolder).approve(router.address, ethers.constants.MaxUint256);
+        await token0.connect(user).approve(router.address, ethers.constants.MaxUint256);
+        await token0.connect(godModeUser).approve(router.address, ethers.constants.MaxUint256);
       });
 
       it("happy path", async () => {
         await expect(
-          router.swapExactTokensForTokens(
-            factory.address,
-            swapAmount,
-            0,
-            [token0.address, token1.address],
-            ethers.constants.AddressZero,
-            overrides
-          )
-        )
-          .to.emit(token0, "Transfer")
-          .withArgs(owner.address, pair.address, swapAmountAfterFee)
-          .to.emit(token1, "Transfer")
-          .withArgs(pair.address, owner.address, expectedOutputAmount)
-          .to.emit(pair, "Sync")
-          .withArgs(token0Amount.add(swapAmountAfterFee), token1Amount.sub(expectedOutputAmount))
-          .to.emit(pair, "Swap")
-          .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, owner.address);
-      });
-
-      it("SYA holder – no fees", async () => {
-        token0reserve = await token0.balanceOf(pair.address);
-        token1reserve = await token1.balanceOf(pair.address);
-        await syaToken.transfer(syaHolder.address, expandTo9Decimals(10000));
-        await token0.transfer(syaHolder.address, expandTo18Decimals(4000));
-        await router.updateBalanceThreshold(expandTo9Decimals(5000));
-
-        await expect(
           router
-            .connect(syaHolder)
+            .connect(user)
             .swapExactTokensForTokens(
               factory.address,
               swapAmount,
-              0,
+              amountMin,
               [token0.address, token1.address],
               ethers.constants.AddressZero,
               overrides
             )
         )
           .to.emit(token0, "Transfer")
-          .withArgs(syaHolder.address, pair.address, swapAmount)
+          .withArgs(user.address, pair.address, swapAmountAfterFee)
           .to.emit(token1, "Transfer")
-          .withArgs(pair.address, syaHolder.address, expectedOutputAmountSyaHolder)
+          .withArgs(pair.address, user.address, expectedOutputAmount)
+          .to.emit(token0, "Transfer")
+          .withArgs(user.address, feeReceiver.address, feeAmount)
           .to.emit(pair, "Sync")
-          .withArgs(token0reserve.add(swapAmount), token1reserve.sub(expectedOutputAmountSyaHolder))
+          .withArgs(token0Amount.add(swapAmountAfterFee), token1Amount.sub(expectedOutputAmount))
           .to.emit(pair, "Swap")
-          .withArgs(router.address, swapAmount, 0, 0, expectedOutputAmountSyaHolder, syaHolder.address);
+          .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, user.address);
       });
 
       it("referral", async () => {
         token0reserve = await token0.balanceOf(pair.address);
         token1reserve = await token1.balanceOf(pair.address);
-        const expectedOutputAmount = BigNumber.from("1479758172749236202");
 
         await expect(
-          router.swapExactTokensForTokens(
-            factory.address,
-            swapAmount,
-            0,
-            [token0.address, token1.address],
-            syaHolder.address,
-            overrides
-          )
+          router
+            .connect(user)
+            .swapExactTokensForTokens(
+              factory.address,
+              swapAmount,
+              amountMin,
+              [token0.address, token1.address],
+              godModeUser.address,
+              overrides
+            )
         )
           .to.emit(token0, "Transfer")
-          .withArgs(owner.address, pair.address, swapAmountAfterFee)
+          .withArgs(user.address, pair.address, swapAmountAfterFee)
           .to.emit(token0, "Transfer")
-          .withArgs(owner.address, syaHolder.address, referralReward)
+          .withArgs(user.address, godModeUser.address, referralAmount)
+          .to.emit(token0, "Transfer")
+          .withArgs(user.address, feeReceiver.address, feeReceiverAmount)
           .to.emit(router, "ReferralRewardPaid")
-          .withArgs(owner.address, syaHolder.address, token1.address, token0.address, referralReward)
+          .withArgs(user.address, godModeUser.address, token1.address, token0.address, referralAmount)
           .to.emit(token1, "Transfer")
-          .withArgs(pair.address, owner.address, expectedOutputAmount)
+          .withArgs(pair.address, user.address, expectedOutputAmount)
           .to.emit(pair, "Sync")
           .withArgs(token0reserve.add(swapAmountAfterFee), token1reserve.sub(expectedOutputAmount))
           .to.emit(pair, "Swap")
-          .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, owner.address);
+          .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, user.address);
+      });
+
+      it("SYA holder – no fees", async () => {
+        token0reserve = await token0.balanceOf(pair.address);
+        token1reserve = await token1.balanceOf(pair.address);
+
+        await expect(
+          router
+            .connect(godModeUser)
+            .swapExactTokensForTokens(
+              factory.address,
+              swapAmount,
+              amountMin,
+              [token0.address, token1.address],
+              ethers.constants.AddressZero,
+              overrides
+            )
+        )
+          .to.emit(token0, "Transfer")
+          .withArgs(godModeUser.address, pair.address, swapAmount)
+          .to.emit(token1, "Transfer")
+          .withArgs(pair.address, godModeUser.address, expectedOutputAmountgodModeUser)
+          .to.emit(pair, "Sync")
+          .withArgs(token0reserve.add(swapAmount), token1reserve.sub(expectedOutputAmountgodModeUser))
+          .to.emit(pair, "Swap")
+          .withArgs(router.address, swapAmount, 0, 0, expectedOutputAmountgodModeUser, godModeUser.address);
       });
     });
 
     describe("swapTokensForExactTokens", () => {
-      const token0Amount = expandTo18Decimals(5);
-      const token1Amount = expandTo18Decimals(10);
-      const expectedSwapAmount = BigNumber.from("671194539615925225");
-      const outputAmount = expandTo18Decimals(1);
+      const token0Amount = expandTo18Decimals(1000000);
+      const token1Amount = expandTo18Decimals(2000000);
+
+      const outputAmount = BigNumber.from("1985023029839830096");
+      const expectedInTotal = parseEther("1");
+      const amountInMax = parseEther("1.05");
+      const expectedSwapAmount = expectedInTotal.mul(FEE_DENOMINATOR.sub(FEE_NUMERATOR)).div(FEE_DENOMINATOR);
+      const feeAmountTotal = expectedInTotal.mul(FEE_NUMERATOR).div(FEE_DENOMINATOR);
+      const referralAmount = feeAmountTotal.mul(1000).div(FEE_DENOMINATOR);
+      const feeReceiverAmount = feeAmountTotal.mul(9000).div(FEE_DENOMINATOR);
+
       let token0reserve: BigNumber, token1reserve: BigNumber;
 
       beforeEach(async () => {
-        await addLiquidity(token0Amount, token1Amount);
+        await addLiquidityTokenPair(token0Amount, token1Amount);
       });
 
-      it("without referral", async () => {
+      it("happy path", async () => {
+        //reset referral
+        await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
+
         token0reserve = await token0.balanceOf(pair.address);
         token1reserve = await token1.balanceOf(pair.address);
+        const balanceToken0Before = await token0.balanceOf(user.address);
+
+        await token0.approve(router.address, ethers.constants.MaxUint256);
+        await expect(
+          router
+            .connect(user)
+            .swapTokensForExactTokens(
+              factory.address,
+              outputAmount,
+              amountInMax,
+              [token0.address, token1.address],
+              constants.AddressZero,
+              overrides
+            )
+        )
+          .to.emit(token0, "Transfer")
+          .withArgs(user.address, pair.address, expectedSwapAmount)
+          .to.emit(token0, "Transfer")
+          .withArgs(user.address, feeReceiver.address, feeAmountTotal)
+          .to.emit(token1, "Transfer")
+          .withArgs(pair.address, user.address, outputAmount)
+          .to.emit(pair, "Sync")
+          .withArgs(token0reserve.add(expectedSwapAmount), token1reserve.sub(outputAmount))
+          .to.emit(pair, "Swap")
+          .withArgs(router.address, expectedSwapAmount, 0, 0, outputAmount, user.address);
+
+        expect(await token0.balanceOf(user.address)).to.be.equal(balanceToken0Before.sub(parseEther("1")));
+      });
+
+      it("referral", async () => {
+        token0reserve = await token0.balanceOf(pair.address);
+        token1reserve = await token1.balanceOf(pair.address);
+        const balanceToken0Before = await token0.balanceOf(user.address);
+
+        await token0.approve(router.address, ethers.constants.MaxUint256);
+        await expect(
+          router
+            .connect(user)
+            .swapTokensForExactTokens(
+              factory.address,
+              outputAmount,
+              amountInMax,
+              [token0.address, token1.address],
+              godModeUser.address,
+              overrides
+            )
+        )
+          .to.emit(token0, "Transfer")
+          .withArgs(user.address, pair.address, expectedSwapAmount)
+          .to.emit(token1, "Transfer")
+          .withArgs(pair.address, user.address, outputAmount)
+          .to.emit(token0, "Transfer")
+          .withArgs(user.address, feeReceiver.address, feeReceiverAmount)
+          .to.emit(token0, "Transfer")
+          .withArgs(user.address, godModeUser.address, referralAmount)
+          .to.emit(pair, "Sync")
+          .withArgs(token0reserve.add(expectedSwapAmount), token1reserve.sub(outputAmount))
+          .to.emit(pair, "Swap")
+          .withArgs(router.address, expectedSwapAmount, 0, 0, outputAmount, user.address);
+
+        expect(await token0.balanceOf(user.address)).to.be.equal(balanceToken0Before.sub(parseEther("1")));
+      });
+
+      it("SYA holder – no fees", async () => {
+        const balanceToken0Before = await token0.balanceOf(owner.address);
+
+        token0reserve = await token0.balanceOf(pair.address);
+        token1reserve = await token1.balanceOf(pair.address);
+        await referralRegistry.updateReferralAnchor(owner.address, constants.AddressZero);
         await token0.approve(router.address, ethers.constants.MaxUint256);
         await expect(
           router.swapTokensForExactTokens(
             factory.address,
             outputAmount,
-            ethers.constants.MaxUint256,
+            amountInMax,
             [token0.address, token1.address],
-            ethers.constants.AddressZero,
+            constants.AddressZero,
             overrides
           )
         )
@@ -215,144 +337,58 @@ describe("FloozRouter", () => {
           .withArgs(token0reserve.add(expectedSwapAmount), token1reserve.sub(outputAmount))
           .to.emit(pair, "Swap")
           .withArgs(router.address, expectedSwapAmount, 0, 0, outputAmount, owner.address);
-      });
-    });
 
-    describe("swapExactETHForTokens", () => {
-      const WETHPartnerAmount = expandTo18Decimals(10);
-      const ETHAmount = expandTo18Decimals(5);
-      const swapAmount = expandTo18Decimals(1);
-      const swapAmountAfterFee = ethers.utils.parseEther("0.995");
-      const referralReward = ethers.utils.parseEther("0.0005");
-      const expectedOutputAmount = BigNumber.from("1656254367429354548");
-
-      beforeEach(async () => {
-        await WETHPartner.transfer(WETHPair.address, WETHPartnerAmount);
-        await WETH.deposit({ value: ETHAmount });
-        await WETH.transfer(WETHPair.address, ETHAmount);
-        await WETHPair.mint(wallet.address, overrides);
-
-        await token0.approve(router.address, ethers.constants.MaxUint256);
-      });
-
-      it("without referral", async () => {
-        const WETHPairToken0 = await WETHPair.token0();
-        await expect(
-          router.swapExactETHForTokens(
-            factory.address,
-            0,
-            [WETH.address, WETHPartner.address],
-            ethers.constants.AddressZero,
-            {
-              ...overrides,
-              value: swapAmount,
-            }
-          )
-        )
-          .to.emit(WETH, "Transfer")
-          .withArgs(router.address, WETHPair.address, swapAmountAfterFee)
-          .to.emit(WETHPartner, "Transfer")
-          .withArgs(WETHPair.address, owner.address, expectedOutputAmount)
-          .to.emit(WETHPair, "Sync")
-          .withArgs(
-            WETHPairToken0 === WETHPartner.address
-              ? WETHPartnerAmount.sub(expectedOutputAmount)
-              : ETHAmount.add(swapAmountAfterFee),
-            WETHPairToken0 === WETHPartner.address
-              ? ETHAmount.add(swapAmountAfterFee)
-              : WETHPartnerAmount.sub(expectedOutputAmount)
-          )
-          .to.emit(WETHPair, "Swap")
-          .withArgs(
-            router.address,
-            WETHPairToken0 === WETHPartner.address ? 0 : swapAmountAfterFee,
-            WETHPairToken0 === WETHPartner.address ? swapAmountAfterFee : 0,
-            WETHPairToken0 === WETHPartner.address ? expectedOutputAmount : 0,
-            WETHPairToken0 === WETHPartner.address ? 0 : expectedOutputAmount,
-            owner.address
-          );
-      });
-
-      it("referral", async () => {
-        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
-        let WETHReserve = await WETH.balanceOf(WETHPair.address);
-        const WETHPairToken0 = await WETHPair.token0();
-        const expectedOutputAmount = BigNumber.from("1518780217092309413");
-
-        await expect(
-          router.swapExactETHForTokens(factory.address, 0, [WETH.address, WETHPartner.address], syaHolder.address, {
-            ...overrides,
-            value: swapAmount,
-          })
-        )
-          .to.emit(WETH, "Transfer")
-          .withArgs(router.address, WETHPair.address, swapAmountAfterFee)
-          .to.emit(WETHPartner, "Transfer")
-          .withArgs(WETHPair.address, owner.address, expectedOutputAmount)
-          .to.emit(router, "ReferralRewardPaid")
-          .withArgs(owner.address, syaHolder.address, WETHPartner.address, ethers.constants.AddressZero, referralReward)
-          .to.emit(WETHPair, "Sync")
-          .withArgs(
-            WETHPairToken0 === WETHPartner.address
-              ? WETHPartnerReserve.sub(expectedOutputAmount)
-              : WETHReserve.add(swapAmountAfterFee),
-            WETHPairToken0 === WETHPartner.address
-              ? WETHReserve.add(swapAmountAfterFee)
-              : WETHPartnerReserve.sub(expectedOutputAmount)
-          )
-          .to.emit(WETHPair, "Swap")
-          .withArgs(
-            router.address,
-            WETHPairToken0 === WETHPartner.address ? 0 : swapAmountAfterFee,
-            WETHPairToken0 === WETHPartner.address ? swapAmountAfterFee : 0,
-            WETHPairToken0 === WETHPartner.address ? expectedOutputAmount : 0,
-            WETHPairToken0 === WETHPartner.address ? 0 : expectedOutputAmount,
-            owner.address
-          );
+        expect(await token0.balanceOf(owner.address)).to.be.equal(balanceToken0Before.sub(parseEther("0.995")));
       });
     });
 
     describe("swapTokensForExactETH", () => {
-      const WETHPartnerAmount = expandTo18Decimals(5);
-      const ETHAmount = expandTo18Decimals(10);
-      const expectedSwapAmount = BigNumber.from("1042385163264442003");
-      const outputAmount = expandTo18Decimals(1);
+      const WETHPartnerAmount = expandTo18Decimals(1000);
+      const ETHAmount = expandTo18Decimals(2000);
+      const expectedSwapAmount = BigNumber.from("501503884774467435");
+      const expectedSwapAmountGodMode = BigNumber.from("498995117238746076");
+      const outputAmount = parseEther("0.995");
+      const outputAmountWithFee = outputAmount.mul(FEE_DENOMINATOR).div(FEE_DENOMINATOR.sub(FEE_NUMERATOR));
       let WETHPartnerReserve: BigNumber, WETHReserve: BigNumber;
 
       beforeEach(async () => {
-        await WETHPartner.transfer(WETHPair.address, WETHPartnerAmount);
-        await WETH.deposit({ value: ETHAmount });
-        await WETH.transfer(WETHPair.address, ETHAmount);
-        await WETHPair.mint(wallet.address, overrides);
-
-        WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
-        WETHReserve = await WETH.balanceOf(WETHPair.address);
+        await addLiquidityWETHPair(WETHPartnerAmount, ETHAmount);
       });
 
-      it("happy path without referral", async () => {
+      it("happy path", async () => {
+        //reset referral
+        await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+
         await WETHPartner.approve(router.address, ethers.constants.MaxUint256);
+        await WETHPartner.connect(user).approve(router.address, ethers.constants.MaxUint256);
         const WETHPairToken0 = await WETHPair.token0();
+
+        let balanceBefore = await ethers.provider.getBalance(user.address);
         await expect(
-          router.swapTokensForExactETH(
-            factory.address,
-            outputAmount,
-            ethers.constants.MaxUint256,
-            [WETHPartner.address, WETH.address],
-            ethers.constants.AddressZero,
-            overrides
-          )
+          router
+            .connect(user)
+            .swapTokensForExactETH(
+              factory.address,
+              outputAmount,
+              ethers.constants.MaxUint256,
+              [WETHPartner.address, WETH.address],
+              ethers.constants.AddressZero,
+              overrides
+            )
         )
           .to.emit(WETHPartner, "Transfer")
-          .withArgs(owner.address, WETHPair.address, expectedSwapAmount)
+          .withArgs(user.address, WETHPair.address, expectedSwapAmount)
           .to.emit(WETH, "Transfer")
-          .withArgs(WETHPair.address, router.address, outputAmount)
+          .withArgs(WETHPair.address, router.address, outputAmountWithFee)
           .to.emit(WETHPair, "Sync")
           .withArgs(
             WETHPairToken0 === WETHPartner.address
               ? WETHPartnerReserve.add(expectedSwapAmount)
-              : WETHReserve.sub(outputAmount),
+              : WETHReserve.sub(outputAmountWithFee),
             WETHPairToken0 === WETHPartner.address
-              ? WETHReserve.sub(outputAmount)
+              ? WETHReserve.sub(outputAmountWithFee)
               : WETHPartnerReserve.add(expectedSwapAmount)
           )
           .to.emit(WETHPair, "Swap")
@@ -360,46 +396,144 @@ describe("FloozRouter", () => {
             router.address,
             WETHPairToken0 === WETHPartner.address ? expectedSwapAmount : 0,
             WETHPairToken0 === WETHPartner.address ? 0 : expectedSwapAmount,
+            WETHPairToken0 === WETHPartner.address ? 0 : outputAmountWithFee,
+            WETHPairToken0 === WETHPartner.address ? outputAmountWithFee : 0,
+            router.address
+          );
+      });
+
+      it("referral", async () => {
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+
+        await WETHPartner.approve(router.address, ethers.constants.MaxUint256);
+        await WETHPartner.connect(user).approve(router.address, ethers.constants.MaxUint256);
+        const WETHPairToken0 = await WETHPair.token0();
+
+        let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
+        await expect(
+          router
+            .connect(user)
+            .swapTokensForExactETH(
+              factory.address,
+              outputAmount,
+              ethers.constants.MaxUint256,
+              [WETHPartner.address, WETH.address],
+              godModeUser.address,
+              overrides
+            )
+        )
+          .to.emit(WETHPartner, "Transfer")
+          .withArgs(user.address, WETHPair.address, expectedSwapAmount)
+          .to.emit(WETH, "Transfer")
+          .withArgs(WETHPair.address, router.address, outputAmountWithFee)
+          .to.emit(router, "ReferralRewardPaid")
+          .withArgs(user.address, godModeUser.address, WETH.address, constants.AddressZero, parseEther("0.0005"))
+          .to.emit(WETHPair, "Sync")
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address
+              ? WETHPartnerReserve.add(expectedSwapAmount)
+              : WETHReserve.sub(outputAmountWithFee),
+            WETHPairToken0 === WETHPartner.address
+              ? WETHReserve.sub(outputAmountWithFee)
+              : WETHPartnerReserve.add(expectedSwapAmount)
+          )
+          .to.emit(WETHPair, "Swap")
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? expectedSwapAmount : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : expectedSwapAmount,
+            WETHPairToken0 === WETHPartner.address ? 0 : outputAmountWithFee,
+            WETHPairToken0 === WETHPartner.address ? outputAmountWithFee : 0,
+            router.address
+          );
+
+        let feeBalanceAfter = await ethers.provider.getBalance(feeReceiver.address);
+        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.0045")));
+      });
+
+      it("SYA Holder – no fee", async () => {
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+
+        await WETHPartner.approve(router.address, ethers.constants.MaxUint256);
+        await WETHPartner.connect(godModeUser).approve(router.address, ethers.constants.MaxUint256);
+        const WETHPairToken0 = await WETHPair.token0();
+
+        let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
+        await expect(
+          router
+            .connect(godModeUser)
+            .swapTokensForExactETH(
+              factory.address,
+              outputAmount,
+              ethers.constants.MaxUint256,
+              [WETHPartner.address, WETH.address],
+              constants.AddressZero,
+              overrides
+            )
+        )
+          .to.emit(WETHPartner, "Transfer")
+          .withArgs(godModeUser.address, WETHPair.address, expectedSwapAmountGodMode)
+          .to.emit(WETH, "Transfer")
+          .withArgs(WETHPair.address, router.address, outputAmount)
+          .to.emit(WETHPair, "Sync")
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address
+              ? WETHPartnerReserve.add(expectedSwapAmountGodMode)
+              : WETHReserve.sub(outputAmount),
+            WETHPairToken0 === WETHPartner.address
+              ? WETHReserve.sub(outputAmount)
+              : WETHPartnerReserve.add(expectedSwapAmountGodMode)
+          )
+          .to.emit(WETHPair, "Swap")
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? expectedSwapAmountGodMode : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : expectedSwapAmountGodMode,
             WETHPairToken0 === WETHPartner.address ? 0 : outputAmount,
             WETHPairToken0 === WETHPartner.address ? outputAmount : 0,
             router.address
           );
+
+        let feeBalanceAfter = await ethers.provider.getBalance(feeReceiver.address);
+        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore);
       });
     });
 
     describe("swapExactTokensForETH", () => {
-      const WETHPartnerAmount = expandTo18Decimals(5);
-      const ETHAmount = expandTo18Decimals(10);
-      const swapAmount = expandTo18Decimals(1);
-      const swapAmountAfterFee = ethers.utils.parseEther("0.995");
-      const expectedOutputAmount = BigNumber.from("1070940066558501802");
-      let WETHPartnerReserve: BigNumber, WETHReserve: BigNumber;
+      const WETHPartnerAmount = expandTo18Decimals(1000);
+      const ETHAmount = expandTo18Decimals(2000);
+      const swapAmount = BigNumber.from("501503884774467435");
+      const expectedOutputAmount = BigNumber.from("1000000000000000001");
 
       beforeEach(async () => {
-        await WETHPartner.transfer(WETHPair.address, WETHPartnerAmount);
-        await WETH.deposit({ value: ETHAmount });
-        await WETH.transfer(WETHPair.address, ETHAmount);
-        await WETHPair.mint(wallet.address, overrides);
-
-        WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
-        WETHReserve = await WETH.balanceOf(WETHPair.address);
+        await addLiquidityWETHPair(WETHPartnerAmount, ETHAmount);
       });
 
-      it("happy path without referral", async () => {
+      it("happy path", async () => {
+        //reset referral
+        await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
+
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+
         await WETHPartner.approve(router.address, ethers.constants.MaxUint256);
         const WETHPairToken0 = await WETHPair.token0();
         await expect(
-          router.swapExactTokensForETH(
-            factory.address,
-            swapAmount,
-            0,
-            [WETHPartner.address, WETH.address],
-            ethers.constants.AddressZero,
-            overrides
-          )
+          router
+            .connect(user)
+            .swapExactTokensForETH(
+              factory.address,
+              swapAmount,
+              0,
+              [WETHPartner.address, WETH.address],
+              ethers.constants.AddressZero,
+              overrides
+            )
         )
           .to.emit(WETHPartner, "Transfer")
-          .withArgs(owner.address, WETHPair.address, swapAmount)
+          .withArgs(user.address, WETHPair.address, swapAmount)
           .to.emit(WETH, "Transfer")
           .withArgs(WETHPair.address, router.address, expectedOutputAmount)
           .to.emit(WETHPair, "Sync")
@@ -421,61 +555,411 @@ describe("FloozRouter", () => {
             router.address
           );
       });
+
+      it("referral", async () => {
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+
+        await WETHPartner.approve(router.address, ethers.constants.MaxUint256);
+        const WETHPairToken0 = await WETHPair.token0();
+        await expect(
+          router
+            .connect(user)
+            .swapExactTokensForETH(
+              factory.address,
+              swapAmount,
+              0,
+              [WETHPartner.address, WETH.address],
+              godModeUser.address,
+              overrides
+            )
+        )
+          .to.emit(WETHPartner, "Transfer")
+          .withArgs(user.address, WETHPair.address, swapAmount)
+          .to.emit(WETH, "Transfer")
+          .withArgs(WETHPair.address, router.address, expectedOutputAmount)
+          .to.emit(router, "ReferralRewardPaid")
+          .withArgs(user.address, godModeUser.address, WETH.address, constants.AddressZero, parseEther("0.0005"))
+          .to.emit(WETHPair, "Sync")
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address
+              ? WETHPartnerReserve.add(swapAmount)
+              : WETHReserve.sub(expectedOutputAmount),
+            WETHPairToken0 === WETHPartner.address
+              ? WETHReserve.sub(expectedOutputAmount)
+              : WETHPartnerReserve.add(swapAmount)
+          )
+          .to.emit(WETHPair, "Swap")
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? swapAmount : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : swapAmount,
+            WETHPairToken0 === WETHPartner.address ? 0 : expectedOutputAmount,
+            WETHPairToken0 === WETHPartner.address ? expectedOutputAmount : 0,
+            router.address
+          );
+      });
+
+      it("SYA holder – no fees", async () => {
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+
+        let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
+
+        await WETHPartner.connect(godModeUser).approve(router.address, ethers.constants.MaxUint256);
+        const WETHPairToken0 = await WETHPair.token0();
+        await expect(
+          router
+            .connect(godModeUser)
+            .swapExactTokensForETH(
+              factory.address,
+              swapAmount,
+              0,
+              [WETHPartner.address, WETH.address],
+              constants.AddressZero,
+              overrides
+            )
+        )
+          .to.emit(WETHPartner, "Transfer")
+          .withArgs(godModeUser.address, WETHPair.address, swapAmount)
+          .to.emit(WETH, "Transfer")
+          .withArgs(WETHPair.address, router.address, expectedOutputAmount)
+          .to.emit(WETHPair, "Sync")
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address
+              ? WETHPartnerReserve.add(swapAmount)
+              : WETHReserve.sub(expectedOutputAmount),
+            WETHPairToken0 === WETHPartner.address
+              ? WETHReserve.sub(expectedOutputAmount)
+              : WETHPartnerReserve.add(swapAmount)
+          )
+          .to.emit(WETHPair, "Swap")
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? swapAmount : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : swapAmount,
+            WETHPairToken0 === WETHPartner.address ? 0 : expectedOutputAmount,
+            WETHPairToken0 === WETHPartner.address ? expectedOutputAmount : 0,
+            router.address
+          );
+
+        let feeBalanceAfter = await ethers.provider.getBalance(feeReceiver.address);
+        expect(feeBalanceBefore).to.be.equal(feeBalanceAfter);
+      });
+    });
+
+    describe("swapExactETHForTokens", () => {
+      const WETHPartnerAmount = expandTo18Decimals(1000);
+      const ETHAmount = expandTo18Decimals(2000);
+      const swapAmount = expandTo18Decimals(1);
+      const swapAmountAfterFee = ethers.utils.parseEther("0.995");
+      const referralReward = ethers.utils.parseEther("0.0005");
+      const expectedOutputAmount = BigNumber.from("496010101886875501");
+      const expectedOutputAmountGodMode = BigNumber.from("498501372440495302");
+
+      beforeEach(async () => {
+        await addLiquidityWETHPair(WETHPartnerAmount, ETHAmount);
+      });
+
+      it("happy path", async () => {
+        await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
+        let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
+
+        const WETHPairToken0 = await WETHPair.token0();
+        await expect(
+          router
+            .connect(user)
+            .swapExactETHForTokens(
+              factory.address,
+              0,
+              [WETH.address, WETHPartner.address],
+              ethers.constants.AddressZero,
+              {
+                ...overrides,
+                value: swapAmount,
+              }
+            )
+        )
+          .to.emit(WETH, "Transfer")
+          .withArgs(router.address, WETHPair.address, swapAmountAfterFee)
+          .to.emit(WETHPartner, "Transfer")
+          .withArgs(WETHPair.address, user.address, expectedOutputAmount)
+          .to.emit(WETHPair, "Sync")
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address
+              ? WETHPartnerAmount.sub(expectedOutputAmount)
+              : ETHAmount.add(swapAmountAfterFee),
+            WETHPairToken0 === WETHPartner.address
+              ? ETHAmount.add(swapAmountAfterFee)
+              : WETHPartnerAmount.sub(expectedOutputAmount)
+          )
+          .to.emit(WETHPair, "Swap")
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? 0 : swapAmountAfterFee,
+            WETHPairToken0 === WETHPartner.address ? swapAmountAfterFee : 0,
+            WETHPairToken0 === WETHPartner.address ? expectedOutputAmount : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : expectedOutputAmount,
+            user.address
+          );
+
+        let feeBalanceAfter = await ethers.provider.getBalance(feeReceiver.address);
+        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.005")));
+      });
+
+      it("referral", async () => {
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+        const WETHPairToken0 = await WETHPair.token0();
+        const expectedOutputAmount = BigNumber.from("496010101886875501");
+
+        await expect(
+          router
+            .connect(user)
+            .swapExactETHForTokens(factory.address, 0, [WETH.address, WETHPartner.address], godModeUser.address, {
+              ...overrides,
+              value: swapAmount,
+            })
+        )
+          .to.emit(WETH, "Transfer")
+          .withArgs(router.address, WETHPair.address, swapAmountAfterFee)
+          .to.emit(WETHPartner, "Transfer")
+          .withArgs(WETHPair.address, user.address, expectedOutputAmount)
+          .to.emit(router, "ReferralRewardPaid")
+          .withArgs(
+            user.address,
+            godModeUser.address,
+            WETHPartner.address,
+            ethers.constants.AddressZero,
+            referralReward
+          )
+          .to.emit(WETHPair, "Sync")
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address
+              ? WETHPartnerReserve.sub(expectedOutputAmount)
+              : WETHReserve.add(swapAmountAfterFee),
+            WETHPairToken0 === WETHPartner.address
+              ? WETHReserve.add(swapAmountAfterFee)
+              : WETHPartnerReserve.sub(expectedOutputAmount)
+          )
+          .to.emit(WETHPair, "Swap")
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? 0 : swapAmountAfterFee,
+            WETHPairToken0 === WETHPartner.address ? swapAmountAfterFee : 0,
+            WETHPairToken0 === WETHPartner.address ? expectedOutputAmount : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : expectedOutputAmount,
+            user.address
+          );
+      });
+
+      it("SYA Holder – no fees", async () => {
+        const WETHPairToken0 = await WETHPair.token0();
+        await expect(
+          router
+            .connect(godModeUser)
+            .swapExactETHForTokens(
+              factory.address,
+              0,
+              [WETH.address, WETHPartner.address],
+              ethers.constants.AddressZero,
+              {
+                ...overrides,
+                value: swapAmount,
+              }
+            )
+        )
+          .to.emit(WETH, "Transfer")
+          .withArgs(router.address, WETHPair.address, swapAmount)
+          .to.emit(WETHPartner, "Transfer")
+          .withArgs(WETHPair.address, godModeUser.address, expectedOutputAmountGodMode)
+          .to.emit(WETHPair, "Sync")
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address
+              ? WETHPartnerAmount.sub(expectedOutputAmountGodMode)
+              : ETHAmount.add(swapAmount),
+            WETHPairToken0 === WETHPartner.address
+              ? ETHAmount.add(swapAmount)
+              : WETHPartnerAmount.sub(expectedOutputAmountGodMode)
+          )
+          .to.emit(WETHPair, "Swap")
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? 0 : swapAmount,
+            WETHPairToken0 === WETHPartner.address ? swapAmount : 0,
+            WETHPairToken0 === WETHPartner.address ? expectedOutputAmountGodMode : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : expectedOutputAmountGodMode,
+            godModeUser.address
+          );
+      });
     });
 
     describe("swapETHForExactTokens", () => {
-      const WETHPartnerAmount = expandTo18Decimals(40);
-      const ETHAmount = expandTo18Decimals(5);
-      const expectedSwapAmount = BigNumber.from("525808795773767893");
-      const expectedSwapAmountAfterFee = BigNumber.from("515808795773767893");
-      const outputAmount = expandTo18Decimals(1);
-      let WETHPartnerReserve: BigNumber, WETHReserve: BigNumber;
+      const WETHPartnerAmount = expandTo18Decimals(1000);
+      const ETHAmount = expandTo18Decimals(2000);
+      const outputAmount = BigNumber.from("496010101886875501");
+      const expectedSwapAmount = parseEther("1");
+      const inputAmountAfterFee = parseEther("0.995");
+      const referralReward = parseEther("0.0005");
 
       beforeEach(async () => {
-        await WETHPartner.transfer(WETHPair.address, WETHPartnerAmount);
-        await WETH.deposit({ value: ETHAmount });
-        await WETH.transfer(WETHPair.address, ETHAmount);
-        await WETHPair.mint(wallet.address, overrides);
-        WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
-        WETHReserve = await WETH.balanceOf(WETHPair.address);
+        await addLiquidityWETHPair(WETHPartnerAmount, ETHAmount);
       });
 
       it("happy path ", async () => {
+        //reset referral
+        await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
+
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+
         const WETHPairToken0 = await WETHPair.token0();
+        let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
+
         await expect(
-          router.swapETHForExactTokens(
-            factory.address,
-            outputAmount,
-            [WETH.address, WETHPartner.address],
-            ethers.constants.AddressZero,
-            {
-              ...overrides,
-              value: expectedSwapAmount,
-            }
-          )
+          router
+            .connect(user)
+            .swapETHForExactTokens(
+              factory.address,
+              outputAmount,
+              [WETH.address, WETHPartner.address],
+              constants.AddressZero,
+              {
+                ...overrides,
+                value: expectedSwapAmount.add(3), // should send back the dust
+              }
+            )
         )
           .to.emit(WETH, "Transfer")
-          .withArgs(router.address, WETHPair.address, expectedSwapAmountAfterFee)
+          .withArgs(router.address, WETHPair.address, inputAmountAfterFee)
           .to.emit(WETHPartner, "Transfer")
-          .withArgs(WETHPair.address, owner.address, outputAmount)
+          .withArgs(WETHPair.address, user.address, outputAmount)
+
           .to.emit(WETHPair, "Sync")
           .withArgs(
             WETHPairToken0 === WETHPartner.address
               ? WETHPartnerReserve.sub(outputAmount)
-              : WETHReserve.add(expectedSwapAmountAfterFee),
+              : WETHReserve.add(inputAmountAfterFee),
             WETHPairToken0 === WETHPartner.address
-              ? WETHReserve.add(expectedSwapAmountAfterFee)
+              ? WETHReserve.add(inputAmountAfterFee)
               : WETHPartnerReserve.sub(outputAmount)
           )
           .to.emit(WETHPair, "Swap")
           .withArgs(
             router.address,
-            WETHPairToken0 === WETHPartner.address ? 0 : expectedSwapAmountAfterFee,
-            WETHPairToken0 === WETHPartner.address ? expectedSwapAmountAfterFee : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : inputAmountAfterFee,
+            WETHPairToken0 === WETHPartner.address ? inputAmountAfterFee : 0,
             WETHPairToken0 === WETHPartner.address ? outputAmount : 0,
             WETHPairToken0 === WETHPartner.address ? 0 : outputAmount,
-            owner.address
+            user.address
           );
+
+        let feeBalanceAfter = await ethers.provider.getBalance(feeReceiver.address);
+        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.005")));
+      });
+
+      it("referral", async () => {
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+
+        const WETHPairToken0 = await WETHPair.token0();
+        let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
+
+        await expect(
+          router
+            .connect(user)
+            .swapETHForExactTokens(
+              factory.address,
+              outputAmount,
+              [WETH.address, WETHPartner.address],
+              godModeUser.address,
+              {
+                ...overrides,
+                value: expectedSwapAmount,
+              }
+            )
+        )
+          .to.emit(WETH, "Transfer")
+          .withArgs(router.address, WETHPair.address, inputAmountAfterFee)
+          .to.emit(WETHPartner, "Transfer")
+          .withArgs(WETHPair.address, user.address, outputAmount)
+          .to.emit(router, "ReferralRewardPaid")
+          .withArgs(
+            user.address,
+            godModeUser.address,
+            WETHPartner.address,
+            ethers.constants.AddressZero,
+            referralReward
+          )
+          .to.emit(WETHPair, "Sync")
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address
+              ? WETHPartnerReserve.sub(outputAmount)
+              : WETHReserve.add(inputAmountAfterFee),
+            WETHPairToken0 === WETHPartner.address
+              ? WETHReserve.add(inputAmountAfterFee)
+              : WETHPartnerReserve.sub(outputAmount)
+          )
+          .to.emit(WETHPair, "Swap")
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? 0 : inputAmountAfterFee,
+            WETHPairToken0 === WETHPartner.address ? inputAmountAfterFee : 0,
+            WETHPairToken0 === WETHPartner.address ? outputAmount : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : outputAmount,
+            user.address
+          );
+
+        let feeBalanceAfter = await ethers.provider.getBalance(feeReceiver.address);
+        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.0045")));
+      });
+
+      it("SYA Holder - no fees", async () => {
+        let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
+        let WETHReserve = await WETH.balanceOf(WETHPair.address);
+
+        const WETHPairToken0 = await WETHPair.token0();
+        let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
+
+        await expect(
+          router
+            .connect(godModeUser)
+            .swapETHForExactTokens(
+              factory.address,
+              outputAmount,
+              [WETH.address, WETHPartner.address],
+              constants.AddressZero,
+              {
+                ...overrides,
+                value: inputAmountAfterFee,
+              }
+            )
+        )
+          .to.emit(WETH, "Transfer")
+          .withArgs(router.address, WETHPair.address, inputAmountAfterFee)
+          .to.emit(WETHPartner, "Transfer")
+          .withArgs(WETHPair.address, godModeUser.address, outputAmount)
+          .to.emit(WETHPair, "Sync")
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address
+              ? WETHPartnerReserve.sub(outputAmount)
+              : WETHReserve.add(inputAmountAfterFee),
+            WETHPairToken0 === WETHPartner.address
+              ? WETHReserve.add(inputAmountAfterFee)
+              : WETHPartnerReserve.sub(outputAmount)
+          )
+          .to.emit(WETHPair, "Swap")
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? 0 : inputAmountAfterFee,
+            WETHPairToken0 === WETHPartner.address ? inputAmountAfterFee : 0,
+            WETHPairToken0 === WETHPartner.address ? outputAmount : 0,
+            WETHPairToken0 === WETHPartner.address ? 0 : outputAmount,
+            godModeUser.address
+          );
+
+        let feeBalanceAfter = await ethers.provider.getBalance(feeReceiver.address);
+        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore);
       });
     });
   });
@@ -504,15 +988,30 @@ describe("FloozRouter", () => {
       });
 
       it("happy path ", async () => {
-        await DTT.approve(router.address, ethers.constants.MaxUint256);
-        await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-          factory.address,
-          swapAmount,
-          0,
-          [DTT.address, WETH.address],
-          ethers.constants.AddressZero,
-          overrides
-        );
+        //reset referral
+        await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
+        await DTT.connect(user).approve(router.address, ethers.constants.MaxUint256);
+        await router
+          .connect(user)
+          .swapExactTokensForETHSupportingFeeOnTransferTokens(
+            factory.address,
+            swapAmount,
+            0,
+            [DTT.address, WETH.address],
+            ethers.constants.AddressZero,
+            overrides
+          );
+
+        await router
+          .connect(user)
+          .swapExactTokensForETHSupportingFeeOnTransferTokens(
+            factory.address,
+            swapAmount,
+            0,
+            [DTT.address, WETH.address],
+            godModeUser.address,
+            overrides
+          );
       });
     });
 
@@ -525,11 +1024,26 @@ describe("FloozRouter", () => {
       });
 
       it("happy path ", async () => {
+        //reset referral
+        await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
+
+        await router
+          .connect(user)
+          .swapExactETHForTokensSupportingFeeOnTransferTokens(
+            factory.address,
+            amountOutMin,
+            [WETH.address, DTT.address],
+            ethers.constants.AddressZero,
+            {
+              value: swapAmount,
+            }
+          );
+
         await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
           factory.address,
           amountOutMin,
           [WETH.address, DTT.address],
-          ethers.constants.AddressZero,
+          godModeUser.address,
           {
             value: swapAmount,
           }
@@ -545,127 +1059,120 @@ describe("FloozRouter", () => {
       });
 
       it("happy path", async () => {
-        await DTT.approve(router.address, ethers.constants.MaxUint256);
-        await router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-          factory.address,
-          swapAmount,
-          0,
-          [DTT.address, WETH.address],
-          ethers.constants.AddressZero,
-          overrides
-        );
+        //reset referral
+        await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
+
+        await DTT.connect(user).approve(router.address, ethers.constants.MaxUint256);
+        await router
+          .connect(user)
+          .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            factory.address,
+            swapAmount,
+            0,
+            [DTT.address, WETH.address],
+            ethers.constants.AddressZero,
+            overrides
+          );
+
+        await router
+          .connect(user)
+          .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            factory.address,
+            swapAmount,
+            0,
+            [DTT.address, WETH.address],
+            godModeUser.address,
+            overrides
+          );
       });
     });
   });
 
   describe("Custom Referral Rate", () => {
-    const token0Amount = expandTo18Decimals(5);
-    const token1Amount = expandTo18Decimals(10);
+    const token0Amount = expandTo18Decimals(1000000);
+    const token1Amount = expandTo18Decimals(2000000);
     const swapAmount = expandTo18Decimals(1);
-    const swapAmountAfterFee = ethers.utils.parseEther("0.995");
-    const referralReward = ethers.utils.parseEther("0.0005");
+    const swapAmountAfterFee = swapAmount.sub(swapAmount.mul(FEE_NUMERATOR).div(FEE_DENOMINATOR));
+    const feeAmount = swapAmount.mul(FEE_NUMERATOR).div(FEE_DENOMINATOR);
+    const referralReward = feeAmount.mul(1000).div(FEE_DENOMINATOR);
     let token0reserve: BigNumber, token1reserve: BigNumber;
 
-    async function addLiquidity(token0Amount: BigNumber, token1Amount: BigNumber) {
-      await token0.transfer(pair.address, token0Amount);
-      await token1.transfer(pair.address, token1Amount);
-      await pair.mint(wallet.address, overrides);
-    }
-
     beforeEach(async () => {
-      await addLiquidity(token0Amount, token1Amount);
+      await addLiquidityTokenPair(token0Amount, token1Amount);
       await token0.approve(router.address, ethers.constants.MaxUint256);
-      await token0.connect(syaHolder).approve(router.address, ethers.constants.MaxUint256);
+      await token0.connect(user).approve(router.address, ethers.constants.MaxUint256);
+      await token0.connect(godModeUser).approve(router.address, ethers.constants.MaxUint256);
+      await token0.connect(user).approve(router.address, ethers.constants.MaxUint256);
     });
 
     it("default referral rate", async () => {
       token0reserve = await token0.balanceOf(pair.address);
       token1reserve = await token1.balanceOf(pair.address);
-      const expectedOutputAmount = BigNumber.from("1484004262505293768");
+      const expectedOutputAmount = BigNumber.from("1985023029839830096");
 
       await expect(
-        router.swapExactTokensForTokens(
-          factory.address,
-          swapAmount,
-          0,
-          [token0.address, token1.address],
-          syaHolder.address,
-          overrides
-        )
+        router
+          .connect(user)
+          .swapExactTokensForTokens(
+            factory.address,
+            swapAmount,
+            0,
+            [token0.address, token1.address],
+            godModeUser.address,
+            overrides
+          )
       )
         .to.emit(token0, "Transfer")
-        .withArgs(owner.address, pair.address, swapAmountAfterFee)
+        .withArgs(user.address, pair.address, swapAmountAfterFee)
         .to.emit(token0, "Transfer")
-        .withArgs(owner.address, syaHolder.address, referralReward)
+        .withArgs(user.address, godModeUser.address, referralReward)
         .to.emit(router, "ReferralRewardPaid")
-        .withArgs(owner.address, syaHolder.address, token1.address, token0.address, referralReward)
+        .withArgs(user.address, godModeUser.address, token1.address, token0.address, referralReward)
         .to.emit(token1, "Transfer")
-        .withArgs(pair.address, owner.address, expectedOutputAmount)
+        .withArgs(pair.address, user.address, expectedOutputAmount)
         .to.emit(pair, "Sync")
         .withArgs(token0reserve.add(swapAmountAfterFee), token1reserve.sub(expectedOutputAmount))
         .to.emit(pair, "Swap")
-        .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, owner.address);
+        .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, user.address);
     });
 
     it("custom referral rate", async () => {
       token0reserve = await token0.balanceOf(pair.address);
       token1reserve = await token1.balanceOf(pair.address);
-      let expectedOutputAmount = BigNumber.from("1471538920247152527");
+      let expectedOutputAmount = BigNumber.from("1985023029839830096");
 
-      let referralRewardUpdated = ethers.utils.parseEther("0.0025");
-      await router.updateCustomReferralRewardRate(syaHolder.address, 5000);
-
-      await expect(
-        router.swapExactTokensForTokens(
-          factory.address,
-          swapAmount,
-          0,
-          [token0.address, token1.address],
-          syaHolder.address,
-          overrides
-        )
-      )
-        .to.emit(token0, "Transfer")
-        .withArgs(owner.address, pair.address, swapAmountAfterFee)
-        .to.emit(token0, "Transfer")
-        .withArgs(owner.address, syaHolder.address, referralRewardUpdated)
-        .to.emit(router, "ReferralRewardPaid")
-        .withArgs(owner.address, syaHolder.address, token1.address, token0.address, referralRewardUpdated)
-        .to.emit(token1, "Transfer")
-        .withArgs(pair.address, owner.address, expectedOutputAmount)
-        .to.emit(pair, "Sync")
-        .withArgs(token0reserve.add(swapAmountAfterFee), token1reserve.sub(expectedOutputAmount))
-        .to.emit(pair, "Swap")
-        .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, owner.address);
-
-      await router.updateCustomReferralRewardRate(syaHolder.address, 2500);
-      referralRewardUpdated = ethers.utils.parseEther("0.00125");
-      expectedOutputAmount = BigNumber.from("1391724342670004276");
+      await router.updateCustomReferralRewardRate(godModeUser.address, 2500); // 25% of fee
+      let referralReward = ethers.utils.parseEther("0.00125");
+      expectedOutputAmount = BigNumber.from("1985023029839830096");
       token0reserve = await token0.balanceOf(pair.address);
       token1reserve = await token1.balanceOf(pair.address);
 
       await expect(
-        router.swapExactTokensForTokens(
-          factory.address,
-          swapAmount,
-          0,
-          [token0.address, token1.address],
-          syaHolder.address,
-          overrides
-        )
+        router
+          .connect(user)
+          .swapExactTokensForTokens(
+            factory.address,
+            swapAmount,
+            0,
+            [token0.address, token1.address],
+            godModeUser.address,
+            overrides
+          )
       )
         .to.emit(token0, "Transfer")
-        .withArgs(owner.address, pair.address, swapAmountAfterFee)
+        .withArgs(user.address, pair.address, swapAmountAfterFee)
         .to.emit(token0, "Transfer")
-        .withArgs(owner.address, syaHolder.address, referralRewardUpdated)
+        .withArgs(user.address, godModeUser.address, referralReward)
+        .to.emit(token0, "Transfer")
+        .withArgs(user.address, feeReceiver.address, swapAmount.sub(swapAmountAfterFee).sub(referralReward))
         .to.emit(router, "ReferralRewardPaid")
-        .withArgs(owner.address, syaHolder.address, token1.address, token0.address, referralRewardUpdated)
+        .withArgs(user.address, godModeUser.address, token1.address, token0.address, referralReward)
         .to.emit(token1, "Transfer")
-        .withArgs(pair.address, owner.address, expectedOutputAmount)
+        .withArgs(pair.address, user.address, expectedOutputAmount)
         .to.emit(pair, "Sync")
         .withArgs(token0reserve.add(swapAmountAfterFee), token1reserve.sub(expectedOutputAmount))
         .to.emit(pair, "Swap")
-        .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, owner.address);
+        .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, user.address);
     });
   });
 
@@ -830,11 +1337,10 @@ describe("FloozRouter", () => {
 
   describe("View functions", () => {
     it("returns referee correcly", async () => {
-      expect(await router.getUserReferee(owner.address)).to.eq(syaHolder.address);
-      expect(await router.hasUserReferee(owner.address)).to.eq(true);
-
-      expect(await router.getUserReferee(syaHolder.address)).to.eq(ethers.constants.AddressZero);
-      expect(await router.hasUserReferee(syaHolder.address)).to.eq(false);
+      expect(await router.getUserReferee(user.address)).to.eq(godModeUser.address);
+      expect(await router.hasUserReferee(user.address)).to.eq(true);
+      expect(await router.getUserReferee(godModeUser.address)).to.eq(ethers.constants.AddressZero);
+      expect(await router.hasUserReferee(godModeUser.address)).to.eq(false);
     });
   });
 });

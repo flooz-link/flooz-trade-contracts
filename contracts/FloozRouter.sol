@@ -122,9 +122,8 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         assert(IWETH(WETH).transfer(_pairFor(fork, path[0], path[1]), amounts[0]));
         _swap(fork, amounts, path, msg.sender);
 
-        if (feeAmount > 0) {
+        if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
-        }
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
@@ -145,16 +144,16 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amountIn);
         _swapSupportingFeeOnTransferTokens(fork, path, address(this));
         uint256 amountOut = IERC20(WETH).balanceOf(address(this));
-        require(amountOut >= amountOutMin, "FloozRouter: LOW_SLIPPAGE");
         IWETH(WETH).withdraw(amountOut);
         (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
             amountOut,
             referee,
             false
         );
+        require(amountWithdraw >= amountOutMin, "FloozRouter: LOW_SLIPPAGE");
         TransferHelper.safeTransferETH(msg.sender, amountWithdraw);
 
-        if (feeAmount > 0)
+        if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
@@ -180,10 +179,11 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         );
         amounts = _getAmountsOut(fork, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
-        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amounts[0]);
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), swapAmount);
         _swap(fork, amounts, path, msg.sender);
 
-        if (feeAmount > 0) _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
+        if (feeAmount.add(referralReward) > 0)
+            _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
@@ -203,18 +203,18 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         require(path[path.length - 1] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
         amounts = _getAmountsOut(fork, amountIn, path);
-        require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
-        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amounts[0]);
-        _swap(fork, amounts, path, address(this));
-        IWETH(WETH).withdraw(amounts[amounts.length - 1]);
-        (uint256 amountOut, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+        (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
             amounts[amounts.length - 1],
             referee,
             false
         );
-        TransferHelper.safeTransferETH(msg.sender, amountOut);
+        require(amountWithdraw >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amounts[0]);
+        _swap(fork, amounts, path, address(this));
+        IWETH(WETH).withdraw(amounts[amounts.length - 1]);
+        TransferHelper.safeTransferETH(msg.sender, amountWithdraw);
 
-        if (feeAmount > 0)
+        if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
@@ -231,15 +231,15 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         address referee
     ) external payable whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
-        referee = _getReferee(referee);
         amounts = _getAmountsIn(fork, amountOut, path);
-        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee, false);
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee, true);
         require(amounts[0].add(feeAmount).add(referralReward) <= msg.value, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
+
         IWETH(WETH).deposit{value: amounts[0]}();
         assert(IWETH(WETH).transfer(_pairFor(fork, path[0], path[1]), amounts[0]));
         _swap(fork, amounts, path, msg.sender);
 
-        if (feeAmount > 0)
+        if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
 
         // refund dust eth, if any
@@ -274,7 +274,8 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
             "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT"
         );
 
-        if (feeAmount > 0) _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
+        if (feeAmount.add(referralReward) > 0)
+            _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
@@ -293,12 +294,14 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     ) external whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
         referee = _getReferee(referee);
         amounts = _getAmountsIn(fork, amountOut, path);
-        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee, false);
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee, true);
+
         require(amounts[0].add(feeAmount).add(referralReward) <= amountInMax, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amounts[0]);
         _swap(fork, amounts, path, msg.sender);
 
-        if (feeAmount > 0) _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
+        if (feeAmount.add(referralReward) > 0)
+            _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
@@ -317,19 +320,17 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     ) external whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
         require(path[path.length - 1] == WETH, "FloozRouter: INVALID_PATH");
         referee = _getReferee(referee);
-        amounts = _getAmountsIn(fork, amountOut, path);
-        require(amounts[0] <= amountInMax, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
+
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountOut, referee, true);
+
+        amounts = _getAmountsIn(fork, amountOut.add(feeAmount).add(referralReward), path);
+        require(amounts[0].add(feeAmount).add(referralReward) <= amountInMax, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
         TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amounts[0]);
         _swap(fork, amounts, path, address(this));
         IWETH(WETH).withdraw(amounts[amounts.length - 1]);
-        (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-            amounts[amounts.length - 1],
-            referee,
-            false
-        );
 
-        TransferHelper.safeTransferETH(msg.sender, swapAmount);
-        if (feeAmount > 0)
+        TransferHelper.safeTransferETH(msg.sender, amountOut);
+        if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
@@ -359,7 +360,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
             IERC20(path[path.length - 1]).balanceOf(msg.sender).sub(balanceBefore) >= amountOutMin,
             "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT"
         );
-        if (feeAmount > 0)
+        if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
@@ -463,7 +464,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
                     msg.value,
                     referee,
-                    true
+                    false
                 );
                 _withdrawFeesAndRewards(address(0), tokenIn, referee, feeAmount, referralReward);
                 (bool success, ) = impl.call{value: swapAmount}(data);
@@ -478,7 +479,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
                 (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
                     balanceBefore.sub(balanceAfter),
                     referee,
-                    false
+                    true
                 );
                 _withdrawFeesAndRewards(tokenOut, tokenIn, referee, feeAmount, referralReward);
             }
@@ -488,11 +489,10 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     /// @dev calculates swap, fee & reward amounts
     /// @param amount total amount of tokens
     /// @param referee the address of the referee for msg.sender
-    /// @param reverseCalculation if the calculation should be executed reversely
     function _calculateFeesAndRewards(
         uint256 amount,
         address referee,
-        bool reverseCalculation
+        bool additiveFee
     )
         internal
         view
@@ -504,30 +504,25 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     {
         // no fees for users above threshold
         if (userAboveBalanceThreshold(msg.sender)) {
-            referralReward = 0;
-            feeAmount = 0;
             swapAmount = amount;
         } else {
-            uint256 fees;
-            if (reverseCalculation) {
-                // assumes amount provided already includes fee
-                swapAmount = amount.mul(FEE_DENOMINATOR).div(FEE_DENOMINATOR.add(swapFee));
-                fees = amount.sub(swapAmount);
+            if (additiveFee) {
+                swapAmount = amount;
+                feeAmount = swapAmount.mul(FEE_DENOMINATOR).div(FEE_DENOMINATOR.sub(swapFee)).sub(amount);
             } else {
-                // assumes amount provided does not include fees
-                fees = amount.mul(swapFee).div(FEE_DENOMINATOR);
-                swapAmount = amount.sub(fees);
+                feeAmount = amount.mul(swapFee).div(FEE_DENOMINATOR);
+                swapAmount = amount.sub(feeAmount);
             }
+
             // calculate referral rates, if referee is not 0x
             if (referee != address(0) && referralsActivated) {
                 uint16 referralRate = customReferralRewardRate[referee] > 0
                     ? customReferralRewardRate[referee]
                     : referralRewardRate;
-                referralReward = fees.mul(referralRate).div(FEE_DENOMINATOR);
-                feeAmount = amount.sub(swapAmount).sub(referralReward);
+                referralReward = feeAmount.mul(referralRate).div(FEE_DENOMINATOR);
+                feeAmount = feeAmount.sub(referralReward);
             } else {
                 referralReward = 0;
-                feeAmount = fees;
             }
         }
     }
@@ -604,7 +599,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         emit CustomReferralRewardRateUpdated(account, referralRate);
     }
 
-    /// @dev returns the referee for a given user – 0x address if none
+    /// @dev returns the referee for a given user – 0x address if none
     function getUserReferee(address user) external view returns (address) {
         return referralRegistry.getUserReferee(user);
     }

@@ -8,7 +8,7 @@ chai.use(solidity);
 
 describe("ReferralRegistry", () => {
   const [owner, wallet, referee, otherUser] = waffle.provider.getWallets();
-  const loadFixture = createFixtureLoader([owner, referee]);
+  const loadFixture = createFixtureLoader([owner, referee, otherUser]);
 
   let referralRegistry: Contract;
 
