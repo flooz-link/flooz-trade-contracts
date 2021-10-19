@@ -62,7 +62,7 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
   const factoryV2 = await PancakeFactory.deploy(wallet.address);
   const initHash = await factoryV2.INIT_CODE_PAIR_HASH();
   const pancakeRouterV2 = await PancakeRouterV2.deploy(factoryV2.address, WETH.address);
-  //console.log("INIT_CODE_PAIR_HASH:", initHash);
+  console.log("INIT_CODE_PAIR_HASH:", initHash);
 
   // deploy Fee Receiver
   const revenueReceiver = wallet.address;
@@ -88,7 +88,7 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
     referralRegistry.address,
     zeroExContract
   );
-  await router.registerFork(factoryV2.address, initHash);
+  await router.updateFork(factoryV2.address, initHash, true);
 
   // grant flooz router anchor manager privilege to register anchors
   await referralRegistry.updateAnchorManager(router.address, true);

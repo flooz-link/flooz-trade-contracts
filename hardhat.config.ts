@@ -56,7 +56,7 @@ module.exports = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 400,
+            runs: 200,
           },
         },
       },
@@ -65,18 +65,12 @@ module.exports = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 400,
+            runs: 200,
           },
         },
       },
       {
         version: "0.5.16",
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 400,
-          },
-        },
       },
     ],
   },

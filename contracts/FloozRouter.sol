@@ -24,8 +24,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     event BalanceThresholdUpdated(uint256 balanceThreshold);
     event CustomReferralRewardRateUpdated(address indexed account, uint16 referralRate);
     event ReferralRewardPaid(address from, address indexed to, address tokenOut, address tokenReward, uint256 amount);
-    event FeePaid(address token, uint256 amount);
-    event ForkCreated(address factory);
     event ForkUpdated(address factory);
 
     // Denominator of fee
@@ -239,12 +237,12 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         assert(IWETH(WETH).transfer(_pairFor(fork, path[0], path[1]), amounts[0]));
         _swap(fork, amounts, path, msg.sender);
 
-        if (feeAmount.add(referralReward) > 0)
-            _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
-
         // refund dust eth, if any
         if (msg.value > amounts[0].add(feeAmount).add(referralReward))
             TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0].add(feeAmount).add(referralReward));
+
+        if (feeAmount.add(referralReward) > 0)
+            _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
@@ -466,10 +464,10 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
                     referee,
                     false
                 );
-                _withdrawFeesAndRewards(address(0), tokenIn, referee, feeAmount, referralReward);
                 (bool success, ) = impl.call{value: swapAmount}(data);
                 require(success, "FloozRouter: REVERTED");
                 TransferHelper.safeTransfer(tokenIn, msg.sender, IERC20(tokenIn).balanceOf(address(this)));
+                _withdrawFeesAndRewards(address(0), tokenIn, referee, feeAmount, referralReward);
             } else {
                 uint256 balanceBefore = IERC20(tokenOut).balanceOf(msg.sender);
                 (bool success, ) = impl.delegatecall(data);
@@ -527,14 +525,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    /// @dev lets the admin register an Uniswap style fork
-    function registerFork(address _factory, bytes calldata _initCode) external onlyOwner {
-        require(!forkActivated[_factory], "FloozRouter: ACTIVE_FORK");
-        forkActivated[_factory] = true;
-        forkInitCode[_factory] = _initCode;
-        emit ForkCreated(_factory);
-    }
-
     /// @dev lets the admin update an Uniswap style fork
     function updateFork(
         address _factory,
@@ -564,6 +554,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
 
     /// @dev lets the admin update the referral reward rate
     function updateReferralRewardRate(uint16 newReferralRewardRate) external onlyOwner {
+        require(newReferralRewardRate <= FEE_DENOMINATOR, "FloozRouter: INVALID_RATE");
         referralRewardRate = newReferralRewardRate;
         emit ReferralRewardRateUpdated(newReferralRewardRate);
     }
@@ -651,10 +642,10 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         uint256 amountIn,
         uint256 reserveIn,
         uint256 reserveOut
-    ) internal view returns (uint256 amountOut) {
+    ) internal pure returns (uint256 amountOut) {
         require(amountIn > 0, "FloozRouter: INSUFFICIENT_INPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
-        uint256 amountInWithFee = amountIn.mul((9975 - getUserFee(msg.sender)));
+        uint256 amountInWithFee = amountIn.mul((9980));
         uint256 numerator = amountInWithFee.mul(reserveOut);
         uint256 denominator = reserveIn.mul(10000).add(amountInWithFee);
         amountOut = numerator / denominator;
@@ -665,11 +656,11 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         uint256 amountOut,
         uint256 reserveIn,
         uint256 reserveOut
-    ) internal view returns (uint256 amountIn) {
+    ) internal pure returns (uint256 amountIn) {
         require(amountOut > 0, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
         uint256 numerator = reserveIn.mul(amountOut).mul(10000);
-        uint256 denominator = reserveOut.sub(amountOut).mul(9975 - getUserFee(msg.sender));
+        uint256 denominator = reserveOut.sub(amountOut).mul(9980);
         amountIn = (numerator / denominator).add(1);
     }
 

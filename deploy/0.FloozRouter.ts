@@ -38,7 +38,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   let swapFee = 50; // 0.5 %
   let referralReward = 1000; // 10 %
   let buybackRate = 5000; // 50%
-  let balanceThreshold = expandTo9Decimals(5000000000); //5b SYA
+  let balanceThreshold = expandTo9Decimals(50000000000); //50b SYA
 
   const feeReceiver = await deploy("FeeReceiver", {
     from: deployer,
@@ -53,10 +53,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     contract: "ReferralRegistry",
   });
 
-  const floozRouter = await deploy("TestRouter", {
+  const floozRouter = await deploy("FloozRouter", {
     from: deployer,
     log: true,
-    contract: "TestRouter",
+    contract: "FloozRouter",
     args: [
       WETH,
       swapFee,
@@ -72,14 +72,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // grant permission for new router to set referralAnchors
   await execute("ReferralRegistry", { from: deployer, log: true }, "updateAnchorManager", floozRouter.address, true);
 
-  // register Pancakeswap V1
-  await execute("TestRouter", { from: deployer, log: true }, "registerFork", factoryV1, initCodeV1);
+  // register Pancakeswap V1 & V2
+  await execute("FloozRouter", { from: deployer, log: true }, "updateFork", factoryV1, initCodeV1, true);
+  await execute("FloozRouter", { from: deployer, log: true }, "updateFork", factoryV2, initCodeV2, true);
 
-  // register Pancakeswap V2
-  await execute("TestRouter", { from: deployer, log: true }, "registerFork", factoryV2, initCodeV2);
-
-  //await execute("FeeReceiver", { from: deployer, log: true }, "transferOwnership", contractOwner);
-  //await execute("TestRouter", { from: deployer, log: true }, "transferOwnership", contractOwner);
+  await execute("FeeReceiver", { from: deployer, log: true }, "transferOwnership", contractOwner);
+  await execute("FloozRouter", { from: deployer, log: true }, "transferOwnership", contractOwner);
 };
 
 export default func;
