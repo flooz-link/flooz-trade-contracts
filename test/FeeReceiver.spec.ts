@@ -1,165 +1,172 @@
-import chai, { expect } from 'chai'
-import { BigNumber, Contract } from 'ethers'
-import { solidity, createFixtureLoader } from 'ethereum-waffle'
-import hre, { ethers, waffle } from 'hardhat'
+import chai, { expect } from "chai";
+import { Contract } from "ethers";
+import { solidity, createFixtureLoader } from "ethereum-waffle";
+import hre, { ethers, waffle } from "hardhat";
 
-import { expandTo18Decimals, expandTo9Decimals, mineBlock, latestBlockTimestamp } from './shared/utilities'
-import { v2Fixture } from './shared/fixtures'
+import { expandTo18Decimals, expandTo9Decimals, mineBlock, latestBlockTimestamp } from "./shared/utilities";
+import { v2Fixture } from "./shared/fixtures";
 
-chai.use(solidity)
+chai.use(solidity);
 
-const overrides = {
-    gasLimit: 9999999,
-}
+describe("FeeReceiver", () => {
+  const [owner, wallet, revenueReceiver, godModeUser] = waffle.provider.getWallets();
+  const loadFixture = createFixtureLoader([owner, revenueReceiver, godModeUser]);
 
-describe('FeeReceiver', () => {
-    const [owner, wallet, revenueReceiver] = waffle.provider.getWallets()
-    const loadFixture = createFixtureLoader([owner, revenueReceiver])
+  let token0: Contract;
+  let token1: Contract;
+  let WETH: Contract;
+  let WETHPartner: Contract;
+  let factory: Contract;
+  let router: Contract;
+  let syaToken: Contract;
+  let syaPair: Contract;
+  let feeReceiver: Contract;
+  let pancakeRouterV2: Contract;
 
-    let token0: Contract
-    let token1: Contract
-    let WETH: Contract
-    let WETHPartner: Contract
-    let factory: Contract
-    let router: Contract
-    let pair: Contract
-    let WETHPair: Contract
-    let routerEventEmitter: Contract
-    let syaToken: Contract
-    let syaPair: Contract
-    let feeReceiver: Contract
-    let pancakeRouterV2: Contract
+  beforeEach(async function () {
+    const fixture = await loadFixture(v2Fixture);
+    token0 = fixture.token0;
+    token1 = fixture.token1;
+    WETH = fixture.WETH;
+    WETHPartner = fixture.WETHPartner;
+    factory = fixture.factoryV2;
+    router = fixture.router;
+    syaToken = fixture.syaToken;
+    syaPair = fixture.syaPair;
+    pancakeRouterV2 = fixture.pancakeRouterV2;
+    feeReceiver = fixture.feeReceiver;
 
-    beforeEach(async function () {
-        const fixture = await loadFixture(v2Fixture)
-        token0 = fixture.token0
-        token1 = fixture.token1
-        WETH = fixture.WETH
-        WETHPartner = fixture.WETHPartner
-        factory = fixture.factoryV2
-        router = fixture.router
-        syaToken = fixture.syaToken
-        syaPair = fixture.syaPair
-        pancakeRouterV2 = fixture.pancakeRouterV2
-        feeReceiver = fixture.feeReceiver
+    await syaToken.transfer(syaPair.address, expandTo9Decimals(100));
+    await WETH.deposit({ value: expandTo18Decimals(100) });
+    await WETH.transfer(syaPair.address, expandTo18Decimals(1));
+    await syaPair.mint(wallet.address);
+  });
 
-        await syaToken.transfer(syaPair.address, expandTo9Decimals(100))
-        await WETH.deposit({ value: expandTo18Decimals(100) })
-        await WETH.transfer(syaPair.address, expandTo18Decimals(1))
-        await syaPair.mint(wallet.address)
-    })
+  describe("Execute Buybacks", () => {
+    it("throws if trying to buyback when paused", async () => {
+      await feeReceiver.pause();
+      await expect(feeReceiver.executeBuyback()).to.be.revertedWith("Pausable: paused");
+      await feeReceiver.unpause();
+    });
 
-    describe('Execute Buybacks', () => {
-        it('throws if trying to buyback when paused', async () => {
-            await feeReceiver.pause()
-            await expect(feeReceiver.executeBuyback()).to.be.revertedWith('Pausable: paused')
-            await feeReceiver.unpause()
-        })
+    it("throws if trying to execute buyback when no ETH balance", async () => {
+      await expect(feeReceiver.executeBuyback()).to.be.revertedWith("FeeReceiver: No balance for buyback");
+    });
 
-        it('throws if trying to execute buyback when no BNB balance', async () => {
-            await expect(feeReceiver.executeBuyback()).to.be.revertedWith('FeeReceiver: No balance for buyback')
-        })
+    it("executes buyback", async () => {
+      await owner.sendTransaction({
+        to: feeReceiver.address,
+        value: expandTo18Decimals(10),
+      });
 
-        it('executes buyback', async () => {
-            await owner.sendTransaction({
-                to: feeReceiver.address,
-                value: expandTo18Decimals(10),
-            })
+      await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(10));
+      await expect(feeReceiver.executeBuyback())
+        .to.emit(feeReceiver, "BuybackExecuted")
+        .withArgs(expandTo18Decimals(5), expandTo18Decimals(5));
+    });
+  });
 
-            await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(10))
-            await expect(feeReceiver.executeBuyback())
-                .to.emit(feeReceiver, 'BuybackExecuted')
-                .withArgs(expandTo18Decimals(5), expandTo18Decimals(5))
-        })
-    })
+  describe("Unwrap WETH", () => {
+    it("throws if contract has no WETH balance", async () => {
+      await expect(feeReceiver.unwrapWETH()).to.be.revertedWith("FeeReceiver: Nothing to unwrap");
+    });
 
-    describe('Unwrap WBNB', () => {
-        it('throws if contract has no WETH balance', async () => {
-            await expect(feeReceiver.unwrapWBNB()).to.be.revertedWith('FeeReceiver: Nothing to unwrap')
-        })
+    it("throws when contract is paused", async () => {
+      await feeReceiver.pause();
+      await expect(feeReceiver.unwrapWETH()).to.be.revertedWith("Pausable: paused");
+      await feeReceiver.unpause();
+    });
 
-        it('throws when contract is paused', async () => {
-            await feeReceiver.pause()
-            await expect(feeReceiver.unwrapWBNB()).to.be.revertedWith('Pausable: paused')
-            await feeReceiver.unpause()
-        })
+    it("converts WETH > ETH", async () => {
+      await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(0));
+      await WETH.transfer(feeReceiver.address, expandTo18Decimals(2));
+      await feeReceiver.unwrapWETH();
+      await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(2));
+    });
+  });
 
-        it('converts WBNB > BNB', async () => {
-            await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(0))
-            await WETH.transfer(feeReceiver.address, expandTo18Decimals(2))
-            await feeReceiver.unwrapWBNB()
-            await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(2))
-        })
-    })
+  describe("Convert Token to ETH", () => {
+    it("converts tokens to ETH", async () => {
+      await feeReceiver.updateRouterWhiteliste(pancakeRouterV2.address, true);
+      await syaToken.transfer(feeReceiver.address, expandTo9Decimals(2));
+      await feeReceiver.convertToETH(pancakeRouterV2.address, syaToken.address, false);
 
-    describe('Convert Token to BNB', () => {
-        it('converts tokens to BNB', async () => {
-            await feeReceiver.updateRouterWhiteliste(pancakeRouterV2.address, true)
-            await syaToken.transfer(feeReceiver.address, expandTo9Decimals(2))
-            await feeReceiver.convertToBnb(pancakeRouterV2.address, syaToken.address, false)
-        })
-    })
+      await syaToken.transfer(feeReceiver.address, expandTo9Decimals(2));
+      await feeReceiver.convertToETH(pancakeRouterV2.address, syaToken.address, true);
+    });
 
-    describe('Admin functions', () => {
-        it('only admin can update router whitelist', async () => {
-            await expect(feeReceiver.connect(wallet).updateRouterWhiteliste(router.address, true)).to.be.revertedWith(
-                'Ownable: caller is not the owner'
-            )
-            await expect(await feeReceiver.routerWhitelist(router.address)).to.eq(false)
+    it("throws if using non-whitelisted router", async () => {
+      await expect(feeReceiver.convertToETH(wallet.address, syaToken.address, false)).to.be.revertedWith(
+        "FeeReceiver: Router not whitelisted"
+      );
+    });
+  });
 
-            await expect(feeReceiver.updateRouterWhiteliste(router.address, true))
-                .to.emit(feeReceiver, 'RouterWhitelistUpdated')
-                .withArgs(router.address, true)
+  describe("Admin functions", () => {
+    it("only admin can update router whitelist", async () => {
+      await expect(feeReceiver.connect(wallet).updateRouterWhiteliste(router.address, true)).to.be.revertedWith(
+        "Ownable: caller is not the owner"
+      );
+      expect(await feeReceiver.routerWhitelist(router.address)).to.eq(false);
 
-            await expect(await feeReceiver.routerWhitelist(router.address)).to.eq(true)
-        })
+      await expect(feeReceiver.updateRouterWhiteliste(router.address, true))
+        .to.emit(feeReceiver, "RouterWhitelistUpdated")
+        .withArgs(router.address, true);
 
-        it('only admin can update update the buyback rate', async () => {
-            await expect(feeReceiver.connect(wallet).updateBuybackRate(10)).to.be.revertedWith('Ownable: caller is not the owner')
-            await expect(feeReceiver.updateBuybackRate(10)).to.emit(feeReceiver, 'BuybackRateUpdated').withArgs(10)
-        })
+      await expect(await feeReceiver.routerWhitelist(router.address)).to.eq(true);
+    });
 
-        it('only admin can update update the revenue receiver', async () => {
-            await expect(feeReceiver.connect(wallet).updateRevenueReceiver(revenueReceiver.address)).to.be.revertedWith(
-                'Ownable: caller is not the owner'
-            )
-            await expect(feeReceiver.updateRevenueReceiver(revenueReceiver.address))
-                .to.emit(feeReceiver, 'RevenueReceiverUpdated')
-                .withArgs(revenueReceiver.address)
-        })
+    it("only admin can update update the buyback rate", async () => {
+      await expect(feeReceiver.connect(wallet).updateBuybackRate(10)).to.be.revertedWith(
+        "Ownable: caller is not the owner"
+      );
+      await expect(feeReceiver.updateBuybackRate(10)).to.emit(feeReceiver, "BuybackRateUpdated").withArgs(10);
+    });
 
-        it('only admin can pause / unpause the contract', async () => {
-            await expect(feeReceiver.connect(wallet).pause()).to.be.revertedWith('Ownable: caller is not the owner')
-            await expect(feeReceiver.connect(wallet).unpause()).to.be.revertedWith('Ownable: caller is not the owner')
-            await expect(feeReceiver.unpause()).to.be.revertedWith('Pausable: not paused')
+    it("only admin can update update the revenue receiver", async () => {
+      await expect(feeReceiver.connect(wallet).updateRevenueReceiver(revenueReceiver.address)).to.be.revertedWith(
+        "Ownable: caller is not the owner"
+      );
+      await expect(feeReceiver.updateRevenueReceiver(revenueReceiver.address))
+        .to.emit(feeReceiver, "RevenueReceiverUpdated")
+        .withArgs(revenueReceiver.address);
+    });
 
-            await feeReceiver.pause()
-            await expect(await feeReceiver.paused()).to.eq(true)
-            await expect(feeReceiver.pause()).to.be.revertedWith('Pausable: paused')
+    it("only admin can pause / unpause the contract", async () => {
+      await expect(feeReceiver.connect(wallet).pause()).to.be.revertedWith("Ownable: caller is not the owner");
+      await expect(feeReceiver.connect(wallet).unpause()).to.be.revertedWith("Ownable: caller is not the owner");
+      await expect(feeReceiver.unpause()).to.be.revertedWith("Pausable: not paused");
 
-            await feeReceiver.unpause()
-            await expect(await feeReceiver.paused()).to.eq(false)
-        })
+      await feeReceiver.pause();
+      expect(await feeReceiver.paused()).to.eq(true);
+      await expect(feeReceiver.pause()).to.be.revertedWith("Pausable: paused");
 
-        it('only owner can withdraw BNB', async () => {
-            await expect(feeReceiver.connect(wallet).withdrawBnb(owner.address, expandTo18Decimals(2))).to.be.revertedWith(
-                'Ownable: caller is not the owner'
-            )
+      await feeReceiver.unpause();
+      expect(await feeReceiver.paused()).to.eq(false);
+    });
 
-            await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(ethers.utils.parseEther('2.046515147306498939'))
+    it("only owner can withdraw ETH", async () => {
+      await expect(feeReceiver.connect(wallet).withdrawETH(owner.address, expandTo18Decimals(2))).to.be.revertedWith(
+        "Ownable: caller is not the owner"
+      );
 
-            await feeReceiver.withdrawBnb(owner.address, ethers.utils.parseEther('2.046515147306498939'))
-            await expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(0))
-        })
+      expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(
+        ethers.utils.parseEther("2.092670630545871314")
+      );
 
-        it('only owner can withdraw Tokens', async () => {
-            await expect(feeReceiver.connect(wallet).withdrawErc20Token(syaToken.address, revenueReceiver.address, 100)).to.be.revertedWith(
-                'Ownable: caller is not the owner'
-            )
-            await expect(await syaToken.balanceOf(revenueReceiver.address)).to.eq(expandTo9Decimals(0))
-            await syaToken.transfer(feeReceiver.address, expandTo9Decimals(100))
-            await feeReceiver.withdrawErc20Token(syaToken.address, revenueReceiver.address, expandTo9Decimals(100))
-            await expect(await syaToken.balanceOf(revenueReceiver.address)).to.eq(expandTo9Decimals(100))
-        })
-    })
-})
+      await feeReceiver.withdrawETH(owner.address, ethers.utils.parseEther("2.092670630545871314"));
+      expect(await ethers.provider.getBalance(feeReceiver.address)).to.eq(expandTo18Decimals(0));
+    });
+
+    it("only owner can withdraw Tokens", async () => {
+      await expect(
+        feeReceiver.connect(wallet).withdrawERC20Token(syaToken.address, wallet.address, 100)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+      expect(await syaToken.balanceOf(wallet.address)).to.eq(expandTo9Decimals(0));
+
+      await syaToken.transfer(feeReceiver.address, expandTo9Decimals(100));
+      await feeReceiver.withdrawERC20Token(syaToken.address, wallet.address, expandTo9Decimals(100));
+      expect(await syaToken.balanceOf(wallet.address)).to.eq(expandTo9Decimals(100));
+    });
+  });
+});

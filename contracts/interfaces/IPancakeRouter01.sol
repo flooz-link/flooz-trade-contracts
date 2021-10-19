@@ -1,7 +1,5 @@
 pragma solidity >=0.6.2;
 
-//SPDX-License-Identifier: Unlicense
-
 interface IPancakeRouter01 {
     function factory() external pure returns (address);
 

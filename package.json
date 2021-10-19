@@ -4,25 +4,26 @@
   "license": "GPL-3.0-or-later",
   "scripts": {
     "compile": "hardhat compile",
+    "clean": "hardhat clean",
     "test": "hardhat test",
-    "test:tracer": "hardhat compile && hardhat test --logs",
     "lint": "yarn lint:sol && yarn lint:ts",
     "lint:sol": "solhint 'contracts/**/*.sol'",
     "lint:ts": "eslint --max-warnings 0",
     "prettier": "prettier 'contracts/**/*.sol' -w && prettier '**/*.js' -w && prettier '**/*.ts' -w",
     "coverage": "hardhat compile && hardhat coverage",
-    "deploy:testnet": "hardhat compile && hardhat deploy --network testnet && npx hardhat etherscan-verify --network testnet",
-    "deploy:mainnet": "hardhat compile && hardhat deploy --network mainnet",
-    "verify:mainnet": "hardhat etherscan-verify --network mainnet",
-    "deploy:localhost": "hardhat compile && hardhat deploy --network localhost",
-    "deploy:hardhat": "hardhat compile && hardhat deploy --network hardhat",
     "flatten": "./tasks/flatten.sh",
-    "clean": "hardhat clean"
+    "deploy:binance-testnet": "hardhat compile && hardhat deploy --network testnet && npx hardhat etherscan-verify --network testnet",
+    "deploy:binance-mainnet": "hardhat compile && hardhat deploy --network mainnet",
+    "verify:binance-mainnet": "hardhat etherscan-verify --network mainnet",
+    "deploy:localhost": "hardhat compile && hardhat deploy --network localhost",
+    "deploy:hardhat": "hardhat compile && hardhat deploy --network hardhat"
   },
   "repository": {
     "type": "git"
   },
   "dependencies": {
+    "@0x/contracts-utils": "^4.7.18",
+    "@float-capital/solidity-coverage": "^0.7.17",
     "@nomiclabs/hardhat-truffle5": "^2.0.0",
     "@nomiclabs/hardhat-web3": "^2.0.0",
     "@pancakeswap-libs/pancake-swap-core": "^0.1.0",
@@ -39,7 +40,6 @@
     "truffle-flattener": "^1.5.0"
   },
   "devDependencies": {
-    "@eth-optimism/smock": "^1.1.1",
     "@nomiclabs/hardhat-ethers": "^2.0.0",
     "@nomiclabs/hardhat-etherscan": "^2.1.6",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
@@ -51,7 +51,6 @@
     "@typescript-eslint/eslint-plugin": "^4.7.0",
     "@typescript-eslint/parser": "^4.7.0",
     "chai": "^4.2.0",
-    "csv-parse": "^4.15.4",
     "debug": "^4.2.0",
     "eslint": "^7.13.0",
     "eslint-config-prettier": "^6.15.0",
@@ -64,6 +63,7 @@
     "hardhat-deploy": "^0.7.5",
     "hardhat-ethernal": "^0.2.3",
     "hardhat-log-remover": "^2.0.1",
+    "hardhat-spdx-license-identifier": "^2.0.3",
     "pancakeswap-peripheral": "^1.1.0-beta.0",
     "prettier": "^2.1.2",
     "prettier-plugin-solidity": "^1.0.0-alpha.60",

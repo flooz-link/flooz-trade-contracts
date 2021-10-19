@@ -1,5 +1,5 @@
-pragma solidity >=0.5.0;
-//SPDX-License-Identifier: Unlicense
+pragma solidity =0.6.6;
+
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 interface IPancakePair {
@@ -46,7 +46,14 @@ interface IPancakePair {
 
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
-    event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to);
+    event Swap(
+        address indexed sender,
+        uint256 amount0In,
+        uint256 amount1In,
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address indexed to
+    );
     event Sync(uint112 reserve0, uint112 reserve1);
 
     function MINIMUM_LIQUIDITY() external pure returns (uint256);
@@ -109,32 +116,5 @@ library PancakeLibrary {
         require(amountA > 0, "PancakeLibrary: INSUFFICIENT_AMOUNT");
         require(reserveA > 0 && reserveB > 0, "PancakeLibrary: INSUFFICIENT_LIQUIDITY");
         amountB = amountA.mul(reserveB) / reserveA;
-    }
-
-    // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
-    function getAmountOut(
-        uint256 amountIn,
-        uint256 reserveIn,
-        uint256 reserveOut
-    ) internal pure returns (uint256 amountOut) {
-        require(amountIn > 0, "PancakeLibrary: INSUFFICIENT_INPUT_AMOUNT");
-        require(reserveIn > 0 && reserveOut > 0, "PancakeLibrary: INSUFFICIENT_LIQUIDITY");
-        uint256 amountInWithFee = amountIn.mul(998);
-        uint256 numerator = amountInWithFee.mul(reserveOut);
-        uint256 denominator = reserveIn.mul(1000).add(amountInWithFee);
-        amountOut = numerator / denominator;
-    }
-
-    // given an output amount of an asset and pair reserves, returns a required input amount of the other asset
-    function getAmountIn(
-        uint256 amountOut,
-        uint256 reserveIn,
-        uint256 reserveOut
-    ) internal pure returns (uint256 amountIn) {
-        require(amountOut > 0, "PancakeLibrary: INSUFFICIENT_OUTPUT_AMOUNT");
-        require(reserveIn > 0 && reserveOut > 0, "PancakeLibrary: INSUFFICIENT_LIQUIDITY");
-        uint256 numerator = reserveIn.mul(amountOut).mul(1000);
-        uint256 denominator = reserveOut.sub(amountOut).mul(998);
-        amountIn = (numerator / denominator).add(1);
     }
 }
