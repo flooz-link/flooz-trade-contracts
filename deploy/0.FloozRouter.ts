@@ -37,46 +37,23 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   let swapFee = 50; // 0.5 %
   let referralReward = 1000; // 10 %
-  let buybackRate = 5000; // 50%
   let balanceThreshold = expandTo9Decimals(50000000000); //50b SYA
 
-  const feeReceiver = await deploy("FeeReceiver", {
-    from: deployer,
-    log: true,
-    contract: "FeeReceiver",
-    args: [pancakeRouterV2, syaToken, WETH, contractOwner, buybackRate],
-  });
+  const feeReceiver = "0x12b61B82f441bAD5A6E4dD86d74b92E8F15b930B";
 
-  const referralRegistry = await deploy("ReferralRegistry", {
-    from: deployer,
-    log: true,
-    contract: "ReferralRegistry",
-  });
+  const referralRegistry = "0x491AcC56B46B09b91CEA690C3D5c7be17e390fbB";
 
   const floozRouter = await deploy("FloozRouter", {
     from: deployer,
     log: true,
     contract: "FloozRouter",
-    args: [
-      WETH,
-      swapFee,
-      referralReward,
-      feeReceiver.address,
-      balanceThreshold,
-      syaToken,
-      referralRegistry.address,
-      zeroEx,
-    ],
+    args: [WETH, swapFee, referralReward, feeReceiver, balanceThreshold, syaToken, referralRegistry, zeroEx],
   });
-
-  // grant permission for new router to set referralAnchors
-  await execute("ReferralRegistry", { from: deployer, log: true }, "updateAnchorManager", floozRouter.address, true);
 
   // register Pancakeswap V1 & V2
   await execute("FloozRouter", { from: deployer, log: true }, "updateFork", factoryV1, initCodeV1, true);
   await execute("FloozRouter", { from: deployer, log: true }, "updateFork", factoryV2, initCodeV2, true);
 
-  await execute("FeeReceiver", { from: deployer, log: true }, "transferOwnership", contractOwner);
   await execute("FloozRouter", { from: deployer, log: true }, "transferOwnership", contractOwner);
 };
 
