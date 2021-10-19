@@ -29,7 +29,6 @@ describe("FloozRouter", () => {
   let pair: Contract;
   let WETHPair: Contract;
   let pancakeRouterV2: Contract;
-  let syaToken: Contract;
   let DTT: Contract;
   let referralRegistry: Contract;
   let factoryV2: Contract;
@@ -46,7 +45,6 @@ describe("FloozRouter", () => {
     pair = fixture.pair;
     WETHPair = fixture.WETHPair;
     pancakeRouterV2 = fixture.pancakeRouterV2;
-    syaToken = fixture.syaToken;
     DTT = fixture.dtt;
     referralRegistry = fixture.referralRegistry;
     factoryV2 = fixture.factoryV2;

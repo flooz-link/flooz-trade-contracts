@@ -1,4 +1,5 @@
 pragma solidity =0.6.6;
+pragma experimental ABIEncoderV2;
 
 import "@0x/contracts-utils/contracts/src/v06/LibBytesV06.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -21,12 +22,17 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     event ReferralRewardRateUpdated(uint16 referralRewardRate);
     event ReferralsActivatedUpdated(bool activated);
     event FeeReceiverUpdated(address payable feeReceiver);
-    event BalanceThresholdUpdated(uint256 balanceThreshold);
     event CustomReferralRewardRateUpdated(address indexed account, uint16 referralRate);
     event ReferralRewardPaid(address from, address indexed to, address tokenOut, address tokenReward, uint256 amount);
     event FeePaid(address token, uint256 amount);
     event ForkCreated(address factory);
     event ForkUpdated(address factory);
+
+    struct SwapData {
+        address fork;
+        address referee;
+        bool fee;
+    }
 
     // Denominator of fee
     uint256 public constant FEE_DENOMINATOR = 10000;
@@ -42,12 +48,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
 
     // address of referral registry that stores referral anchors
     IReferralRegistry public referralRegistry;
-
-    // address of SYA token
-    IERC20 public saveYourAssetsToken;
-
-    // balance threshold of SYA tokens which actives feeless swapping
-    uint256 public balanceThreshold;
 
     // address that receives protocol fees
     address payable public feeReceiver;
@@ -72,8 +72,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     /// @param _swapFee nominator for swapFee. Denominator = 10000
     /// @param _referralRewardRate percentage of swapFee that are paid out as rewards
     /// @param _feeReceiver address that receives protocol fees
-    /// @param _balanceThreshold balance threshold of SYA tokens which actives feeless swapping
-    /// @param _saveYourAssetsToken address of SYA token
     /// @param _referralRegistry address of referral registry that stores referral anchors
     /// @param _zeroEx address of zeroX proxy contract to forward swaps
     constructor(
@@ -81,8 +79,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         uint16 _swapFee,
         uint16 _referralRewardRate,
         address payable _feeReceiver,
-        uint256 _balanceThreshold,
-        IERC20 _saveYourAssetsToken,
         IReferralRegistry _referralRegistry,
         address payable _zeroEx
     ) public {
@@ -90,62 +86,63 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         swapFee = _swapFee;
         referralRewardRate = _referralRewardRate;
         feeReceiver = _feeReceiver;
-        saveYourAssetsToken = _saveYourAssetsToken;
-        balanceThreshold = _balanceThreshold;
         referralRegistry = _referralRegistry;
         zeroEx = _zeroEx;
         referralsActivated = true;
     }
 
     /// @dev execute swap directly on Uniswap/Pancake & simular forks
-    /// @param fork fork used to execute swap
     /// @param amountOutMin minimum tokens to receive
     /// @param path Sell path.
-    /// @param referee address of referee for msg.sender, 0x adress if none
     /// @return amounts
     function swapExactETHForTokens(
-        address fork,
+        SwapData calldata swapData,
         uint256 amountOutMin,
-        address[] calldata path,
-        address referee
-    ) external payable whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
+        address[] calldata path
+    )
+        external
+        payable
+        whenNotPaused
+        isValidFork(swapData.fork)
+        isValidReferee(swapData.referee)
+        returns (uint256[] memory amounts)
+    {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
-        referee = _getReferee(referee);
+        address referee = _getReferee(swapData.referee);
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            swapData.fee,
             msg.value,
             referee,
             false
         );
-        amounts = _getAmountsOut(fork, swapAmount, path);
+        amounts = _getAmountsOut(swapData.fork, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         IWETH(WETH).deposit{value: amounts[0]}();
-        assert(IWETH(WETH).transfer(_pairFor(fork, path[0], path[1]), amounts[0]));
-        _swap(fork, amounts, path, msg.sender);
+        assert(IWETH(WETH).transfer(_pairFor(swapData.fork, path[0], path[1]), amounts[0]));
+        _swap(swapData.fork, amounts, path, msg.sender);
 
         if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
-    /// @param fork fork used to execute swap
     /// @param amountIn amount of tokensIn
     /// @param amountOutMin minimum tokens to receive
     /// @param path Sell path.
-    /// @param referee address of referee for msg.sender, 0x adress if none
     function swapExactTokensForETHSupportingFeeOnTransferTokens(
-        address fork,
+        SwapData calldata swapData,
         uint256 amountIn,
         uint256 amountOutMin,
-        address[] calldata path,
-        address referee
-    ) external whenNotPaused isValidFork(fork) isValidReferee(referee) {
+        address[] calldata path
+    ) external whenNotPaused isValidFork(swapData.fork) isValidReferee(swapData.referee) {
         require(path[path.length - 1] == WETH, "FloozRouter: INVALID_PATH");
-        referee = _getReferee(referee);
-        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amountIn);
-        _swapSupportingFeeOnTransferTokens(fork, path, address(this));
+        address referee = _getReferee(swapData.referee);
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(swapData.fork, path[0], path[1]), amountIn);
+        _swapSupportingFeeOnTransferTokens(swapData.fork, path, address(this));
         uint256 amountOut = IERC20(WETH).balanceOf(address(this));
         IWETH(WETH).withdraw(amountOut);
         (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            swapData.fee,
             amountOut,
             referee,
             false
@@ -158,59 +155,67 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
-    /// @param fork fork used to execute swap
     /// @param amountIn amount if tokens In
     /// @param amountOutMin minimum tokens to receive
     /// @param path Sell path.
-    /// @param referee address of referee for msg.sender, 0x adress if none
     /// @return amounts
     function swapExactTokensForTokens(
-        address fork,
+        SwapData calldata swapData,
         uint256 amountIn,
         uint256 amountOutMin,
-        address[] calldata path,
-        address referee
-    ) external whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
-        referee = _getReferee(referee);
+        address[] calldata path
+    )
+        external
+        whenNotPaused
+        isValidFork(swapData.fork)
+        isValidReferee(swapData.referee)
+        returns (uint256[] memory amounts)
+    {
+        address referee = _getReferee(swapData.referee);
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            swapData.fee,
             amountIn,
             referee,
             false
         );
-        amounts = _getAmountsOut(fork, swapAmount, path);
+        amounts = _getAmountsOut(swapData.fork, swapAmount, path);
         require(amounts[amounts.length - 1] >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
-        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), swapAmount);
-        _swap(fork, amounts, path, msg.sender);
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(swapData.fork, path[0], path[1]), swapAmount);
+        _swap(swapData.fork, amounts, path, msg.sender);
 
         if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
-    /// @param fork fork used to execute swap
     /// @param amountIn amount if tokens In
     /// @param amountOutMin minimum tokens to receive
     /// @param path Sell path.
-    /// @param referee address of referee for msg.sender, 0x adress if none
     /// @return amounts
     function swapExactTokensForETH(
-        address fork,
+        SwapData calldata swapData,
         uint256 amountIn,
         uint256 amountOutMin,
-        address[] calldata path,
-        address referee
-    ) external whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
+        address[] calldata path
+    )
+        external
+        whenNotPaused
+        isValidFork(swapData.fork)
+        isValidReferee(swapData.referee)
+        returns (uint256[] memory amounts)
+    {
         require(path[path.length - 1] == WETH, "FloozRouter: INVALID_PATH");
-        referee = _getReferee(referee);
-        amounts = _getAmountsOut(fork, amountIn, path);
+        address referee = _getReferee(swapData.referee);
+        amounts = _getAmountsOut(swapData.fork, amountIn, path);
         (uint256 amountWithdraw, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            swapData.fee,
             amounts[amounts.length - 1],
             referee,
             false
         );
         require(amountWithdraw >= amountOutMin, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
-        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amounts[0]);
-        _swap(fork, amounts, path, address(this));
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(swapData.fork, path[0], path[1]), amounts[0]);
+        _swap(swapData.fork, amounts, path, address(this));
         IWETH(WETH).withdraw(amounts[amounts.length - 1]);
         TransferHelper.safeTransferETH(msg.sender, amountWithdraw);
 
@@ -219,25 +224,35 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
-    /// @param fork fork used to execute swap
     /// @param amountOut expected amount of tokens out
     /// @param path Sell path.
-    /// @param referee address of referee for msg.sender, 0x adress if none
     /// @return amounts
     function swapETHForExactTokens(
-        address fork,
+        SwapData calldata swapData,
         uint256 amountOut,
-        address[] calldata path,
-        address referee
-    ) external payable whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
+        address[] calldata path
+    )
+        external
+        payable
+        whenNotPaused
+        isValidFork(swapData.fork)
+        isValidReferee(swapData.referee)
+        returns (uint256[] memory amounts)
+    {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
-        amounts = _getAmountsIn(fork, amountOut, path);
-        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee, true);
+        address referee = _getReferee(swapData.referee);
+        amounts = _getAmountsIn(swapData.fork, amountOut, path);
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            swapData.fee,
+            amounts[0],
+            referee,
+            true
+        );
         require(amounts[0].add(feeAmount).add(referralReward) <= msg.value, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
 
         IWETH(WETH).deposit{value: amounts[0]}();
-        assert(IWETH(WETH).transfer(_pairFor(fork, path[0], path[1]), amounts[0]));
-        _swap(fork, amounts, path, msg.sender);
+        assert(IWETH(WETH).transfer(_pairFor(swapData.fork, path[0], path[1]), amounts[0]));
+        _swap(swapData.fork, amounts, path, msg.sender);
 
         if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
@@ -248,27 +263,25 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
-    /// @param fork fork used to execute swap
     /// @param amountIn amount if tokens In
     /// @param amountOutMin minimum tokens to receive
     /// @param path Sell path.
-    /// @param referee address of referee for msg.sender, 0x adress if none
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
-        address fork,
+        SwapData calldata swapData,
         uint256 amountIn,
         uint256 amountOutMin,
-        address[] calldata path,
-        address referee
-    ) external whenNotPaused isValidFork(fork) isValidReferee(referee) {
-        referee = _getReferee(referee);
+        address[] calldata path
+    ) external whenNotPaused isValidFork(swapData.fork) isValidReferee(swapData.referee) {
+        address referee = _getReferee(swapData.referee);
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            swapData.fee,
             amountIn,
             referee,
             false
         );
-        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), swapAmount);
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(swapData.fork, path[0], path[1]), swapAmount);
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(msg.sender);
-        _swapSupportingFeeOnTransferTokens(fork, path, msg.sender);
+        _swapSupportingFeeOnTransferTokens(swapData.fork, path, msg.sender);
         require(
             IERC20(path[path.length - 1]).balanceOf(msg.sender).sub(balanceBefore) >= amountOutMin,
             "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT"
@@ -279,54 +292,70 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
-    /// @param fork fork used to execute swap
     /// @param amountOut expected tokens to receive
     /// @param amountInMax maximum tokens to send
     /// @param path Sell path.
-    /// @param referee address of referee for msg.sender, 0x adress if none
     /// @return amounts
     function swapTokensForExactTokens(
-        address fork,
+        SwapData calldata swapData,
         uint256 amountOut,
         uint256 amountInMax,
-        address[] calldata path,
-        address referee
-    ) external whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
-        referee = _getReferee(referee);
-        amounts = _getAmountsIn(fork, amountOut, path);
-        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee, true);
+        address[] calldata path
+    )
+        external
+        whenNotPaused
+        isValidFork(swapData.fork)
+        isValidReferee(swapData.referee)
+        returns (uint256[] memory amounts)
+    {
+        address referee = _getReferee(swapData.referee);
+        amounts = _getAmountsIn(swapData.fork, amountOut, path);
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            swapData.fee,
+            amounts[0],
+            referee,
+            true
+        );
 
         require(amounts[0].add(feeAmount).add(referralReward) <= amountInMax, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
-        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amounts[0]);
-        _swap(fork, amounts, path, msg.sender);
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(swapData.fork, path[0], path[1]), amounts[0]);
+        _swap(swapData.fork, amounts, path, msg.sender);
 
         if (feeAmount.add(referralReward) > 0)
             _withdrawFeesAndRewards(path[0], path[path.length - 1], referee, feeAmount, referralReward);
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
-    /// @param fork fork used to execute swap
     /// @param amountOut expected tokens to receive
     /// @param amountInMax maximum tokens to send
     /// @param path Sell path.
-    /// @param referee address of referee for msg.sender, 0x adress if none
     /// @return amounts
     function swapTokensForExactETH(
-        address fork,
+        SwapData calldata swapData,
         uint256 amountOut,
         uint256 amountInMax,
-        address[] calldata path,
-        address referee
-    ) external whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
+        address[] calldata path
+    )
+        external
+        whenNotPaused
+        isValidFork(swapData.fork)
+        isValidReferee(swapData.referee)
+        returns (uint256[] memory amounts)
+    {
         require(path[path.length - 1] == WETH, "FloozRouter: INVALID_PATH");
-        referee = _getReferee(referee);
+        address referee = _getReferee(swapData.referee);
 
-        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amountOut, referee, true);
+        (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            swapData.fee,
+            amountOut,
+            referee,
+            true
+        );
 
-        amounts = _getAmountsIn(fork, amountOut.add(feeAmount).add(referralReward), path);
+        amounts = _getAmountsIn(swapData.fork, amountOut.add(feeAmount).add(referralReward), path);
         require(amounts[0].add(feeAmount).add(referralReward) <= amountInMax, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");
-        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(fork, path[0], path[1]), amounts[0]);
-        _swap(fork, amounts, path, address(this));
+        TransferHelper.safeTransferFrom(path[0], msg.sender, _pairFor(swapData.fork, path[0], path[1]), amounts[0]);
+        _swap(swapData.fork, amounts, path, address(this));
         IWETH(WETH).withdraw(amounts[amounts.length - 1]);
 
         TransferHelper.safeTransferETH(msg.sender, amountOut);
@@ -335,27 +364,25 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
-    /// @param fork fork used to execute swap
     /// @param amountOutMin minimum expected tokens to receive
     /// @param path Sell path.
-    /// @param referee address of referee for msg.sender, 0x adress if none
     function swapExactETHForTokensSupportingFeeOnTransferTokens(
-        address fork,
+        SwapData calldata swapData,
         uint256 amountOutMin,
-        address[] calldata path,
-        address referee
-    ) external payable whenNotPaused isValidFork(fork) isValidReferee(referee) {
+        address[] calldata path
+    ) external payable whenNotPaused isValidFork(swapData.fork) isValidReferee(swapData.referee) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
-        referee = _getReferee(referee);
+        address referee = _getReferee(swapData.referee);
         (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+            swapData.fee,
             msg.value,
             referee,
             false
         );
         IWETH(WETH).deposit{value: swapAmount}();
-        assert(IWETH(WETH).transfer(_pairFor(fork, path[0], path[1]), swapAmount));
+        assert(IWETH(WETH).transfer(_pairFor(swapData.fork, path[0], path[1]), swapAmount));
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(msg.sender);
-        _swapSupportingFeeOnTransferTokens(fork, path, msg.sender);
+        _swapSupportingFeeOnTransferTokens(swapData.fork, path, msg.sender);
         require(
             IERC20(path[path.length - 1]).balanceOf(msg.sender).sub(balanceBefore) >= amountOutMin,
             "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT"
@@ -428,7 +455,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     /// @dev Fallback function to execute swaps directly on 0x for users that don't pay a fee
     /// @dev params as of API documentation from 0x API (https://0x.org/docs/api#response-1)
     fallback() external payable {
-        require(userAboveBalanceThreshold(msg.sender), "FloozRouter: FORBIDDEN");
         bytes4 selector = msg.data.readBytes4(0);
         address impl = IZerox(zeroEx).getFunctionImplementation(selector);
         require(impl != address(0), "FloozRouter: NO_IMPLEMENTATION");
@@ -446,22 +472,22 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         bytes calldata data,
         address tokenOut,
         address tokenIn,
-        address referee
+        address referee,
+        bool fee
     ) external payable nonReentrant whenNotPaused isValidReferee(referee) {
         referee = _getReferee(referee);
         bytes4 selector = data.readBytes4(0);
         address impl = IZerox(zeroEx).getFunctionImplementation(selector);
         require(impl != address(0), "FloozRouter: NO_IMPLEMENTATION");
 
-        bool isAboveThreshold = userAboveBalanceThreshold(msg.sender);
-        // skip fees & rewards for god mode users
-        if (isAboveThreshold) {
+        if (!fee) {
             (bool success, ) = impl.delegatecall(data);
             require(success, "FloozRouter: REVERTED");
         } else {
             // if ETH in execute trade as router & distribute funds & fees
             if (msg.value > 0) {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+                    fee,
                     msg.value,
                     referee,
                     false
@@ -477,6 +503,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
                 uint256 balanceAfter = IERC20(tokenOut).balanceOf(msg.sender);
                 require(balanceBefore > balanceAfter, "INVALID_TOKEN");
                 (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+                    fee,
                     balanceBefore.sub(balanceAfter),
                     referee,
                     true
@@ -490,6 +517,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     /// @param amount total amount of tokens
     /// @param referee the address of the referee for msg.sender
     function _calculateFeesAndRewards(
+        bool fee,
         uint256 amount,
         address referee,
         bool additiveFee
@@ -503,7 +531,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         )
     {
         // no fees for users above threshold
-        if (userAboveBalanceThreshold(msg.sender)) {
+        if (!fee) {
             swapAmount = amount;
         } else {
             if (additiveFee) {
@@ -546,16 +574,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         emit ForkUpdated(_factory);
     }
 
-    /// @dev returns if a users is above the SYA threshold and can swap without fees
-    function userAboveBalanceThreshold(address _account) public view returns (bool) {
-        return saveYourAssetsToken.balanceOf(_account) >= balanceThreshold;
-    }
-
-    /// @dev returns the fee nominator for a given user
-    function getUserFee(address user) public view returns (uint256) {
-        saveYourAssetsToken.balanceOf(user) >= balanceThreshold ? 0 : swapFee;
-    }
-
     /// @dev lets the admin update the swapFee nominator
     function updateSwapFee(uint16 newSwapFee) external onlyOwner {
         swapFee = newSwapFee;
@@ -572,12 +590,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     function updateFeeReceiver(address payable newFeeReceiver) external onlyOwner {
         feeReceiver = newFeeReceiver;
         emit FeeReceiverUpdated(newFeeReceiver);
-    }
-
-    /// @dev lets the admin update the SYA balance threshold, which activates feeless trading for users
-    function updateBalanceThreshold(uint256 newBalanceThreshold) external onlyOwner {
-        balanceThreshold = newBalanceThreshold;
-        emit BalanceThresholdUpdated(balanceThreshold);
     }
 
     /// @dev lets the admin update the status of the referral system
@@ -654,7 +666,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     ) internal view returns (uint256 amountOut) {
         require(amountIn > 0, "FloozRouter: INSUFFICIENT_INPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
-        uint256 amountInWithFee = amountIn.mul((9975 - getUserFee(msg.sender)));
+        uint256 amountInWithFee = amountIn.mul((9975 - swapFee));
         uint256 numerator = amountInWithFee.mul(reserveOut);
         uint256 denominator = reserveIn.mul(10000).add(amountInWithFee);
         amountOut = numerator / denominator;
@@ -669,7 +681,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         require(amountOut > 0, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
         uint256 numerator = reserveIn.mul(amountOut).mul(10000);
-        uint256 denominator = reserveOut.sub(amountOut).mul(9975 - getUserFee(msg.sender));
+        uint256 denominator = reserveOut.sub(amountOut).mul(9975 - swapFee);
         amountIn = (numerator / denominator).add(1);
     }
 

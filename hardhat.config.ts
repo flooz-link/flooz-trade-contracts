@@ -29,6 +29,7 @@ module.exports = {
     mainnet: {
       live: true,
       url: "https://bsc-dataseed.binance.org/",
+      allowUnlimitedContractSize: true,
       chainId: 56,
       accounts: [process.env.PRIVATE_KEY_MAINNET],
     },
