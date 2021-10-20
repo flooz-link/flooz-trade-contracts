@@ -994,7 +994,6 @@ describe("FloozMultichainRouter", () => {
   describe("Swaps Supporting Fees", () => {
     async function addLiquidity(DTTAmount: BigNumber, ETHAmount: BigNumber) {
       await DTT.approve(pancakeRouterV2.address, ethers.constants.MaxUint256);
-      console.log(pancakeRouterV2.address);
       await pancakeRouterV2.addLiquidityETH(
         DTT.address,
         DTTAmount,
