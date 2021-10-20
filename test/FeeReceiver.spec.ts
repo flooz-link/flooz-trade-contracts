@@ -8,7 +8,7 @@ import { v2Fixture } from "./shared/fixtures";
 
 chai.use(solidity);
 
-describe.only("FeeReceiver", () => {
+describe("FeeReceiver", () => {
   const [owner, wallet, revenueReceiver, godModeUser] = waffle.provider.getWallets();
   const loadFixture = createFixtureLoader([owner, revenueReceiver, godModeUser]);
 

@@ -13,7 +13,7 @@ import "./interfaces/IReferralRegistry.sol";
 import "./interfaces/IWETH.sol";
 import "./interfaces/IZerox.sol";
 
-contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
+contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
     using SafeMath for uint256;
     using LibBytesV06 for bytes;
 
@@ -24,7 +24,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     event FeeReceiverUpdated(address payable feeReceiver);
     event CustomReferralRewardRateUpdated(address indexed account, uint16 referralRate);
     event ReferralRewardPaid(address from, address indexed to, address tokenOut, address tokenReward, uint256 amount);
-    event FeePaid(address token, uint256 amount);
+    event MaxFeeUpdated(uint256 maxFee);
     event ForkCreated(address factory);
     event ForkUpdated(address factory);
 
@@ -39,6 +39,9 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
 
     // Numerator of fee
     uint16 public swapFee;
+
+    // Absolut number of maximum fee in WEI
+    uint256 public maxFee;
 
     // address of WETH
     address public immutable WETH;
@@ -73,6 +76,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     /// @param _referralRewardRate percentage of swapFee that are paid out as rewards
     /// @param _feeReceiver address that receives protocol fees
     /// @param _referralRegistry address of referral registry that stores referral anchors
+    /// @param _maxFee maximum amount of fees to be paid by trader in WEI
     /// @param _zeroEx address of zeroX proxy contract to forward swaps
     constructor(
         address _WETH,
@@ -80,7 +84,8 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         uint16 _referralRewardRate,
         address payable _feeReceiver,
         IReferralRegistry _referralRegistry,
-        address payable _zeroEx
+        address payable _zeroEx,
+        uint256 _maxFee
     ) public {
         WETH = _WETH;
         swapFee = _swapFee;
@@ -89,6 +94,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         referralRegistry = _referralRegistry;
         zeroEx = _zeroEx;
         referralsActivated = true;
+        maxFee = _maxFee;
     }
 
     /// @dev execute swap directly on Uniswap/Pancake & simular forks
@@ -537,8 +543,10 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
             if (additiveFee) {
                 swapAmount = amount;
                 feeAmount = swapAmount.mul(FEE_DENOMINATOR).div(FEE_DENOMINATOR.sub(swapFee)).sub(amount);
+                feeAmount = feeAmount > maxFee ? maxFee : feeAmount;
             } else {
                 feeAmount = amount.mul(swapFee).div(FEE_DENOMINATOR);
+                feeAmount = feeAmount > maxFee ? maxFee : feeAmount;
                 swapAmount = amount.sub(feeAmount);
             }
 
@@ -578,6 +586,12 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     function updateSwapFee(uint16 newSwapFee) external onlyOwner {
         swapFee = newSwapFee;
         emit SwapFeeUpdated(newSwapFee);
+    }
+
+    /// @dev lets the admin update the maxFee amount
+    function updateMaxFee(uint16 newMaxFee) external onlyOwner {
+        maxFee = newMaxFee;
+        emit MaxFeeUpdated(newMaxFee);
     }
 
     /// @dev lets the admin update the referral reward rate
@@ -663,10 +677,10 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         uint256 amountIn,
         uint256 reserveIn,
         uint256 reserveOut
-    ) internal view returns (uint256 amountOut) {
+    ) internal pure returns (uint256 amountOut) {
         require(amountIn > 0, "FloozRouter: INSUFFICIENT_INPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
-        uint256 amountInWithFee = amountIn.mul((9975 - swapFee));
+        uint256 amountInWithFee = amountIn.mul((9975));
         uint256 numerator = amountInWithFee.mul(reserveOut);
         uint256 denominator = reserveIn.mul(10000).add(amountInWithFee);
         amountOut = numerator / denominator;
@@ -677,11 +691,11 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         uint256 amountOut,
         uint256 reserveIn,
         uint256 reserveOut
-    ) internal view returns (uint256 amountIn) {
+    ) internal pure returns (uint256 amountIn) {
         require(amountOut > 0, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
         uint256 numerator = reserveIn.mul(amountOut).mul(10000);
-        uint256 denominator = reserveOut.sub(amountOut).mul(9975 - swapFee);
+        uint256 denominator = reserveOut.sub(amountOut).mul(9975);
         amountIn = (numerator / denominator).add(1);
     }
 

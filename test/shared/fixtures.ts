@@ -29,7 +29,7 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
   let referralFee = 1000; // 10 % of swapFee
   let ERC20 = await ethers.getContractFactory("ERC20");
   let WETH9 = await ethers.getContractFactory("WETH9");
-  let FloozRouter = await ethers.getContractFactory("FloozRouter");
+  let FloozRouter = await ethers.getContractFactory("FloozMultichainRouter");
   let ReferralRegistry = await ethers.getContractFactory("ReferralRegistry");
   let PancakeFactory = await ethers.getContractFactory("PancakeFactory");
   let RouterEventEmitter = await ethers.getContractFactory("RouterEventEmitter");
@@ -71,7 +71,8 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
     referralFee,
     feeReceiver.address,
     referralRegistry.address,
-    zeroExContract
+    zeroExContract,
+    parseEther("1")
   );
   await router.registerFork(factoryV2.address, initHash);
 
