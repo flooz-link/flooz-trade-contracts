@@ -480,8 +480,8 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
 
     /// @dev Executes a swap on 0x API
     /// @param data calldata expected by data field on 0x API (https://0x.org/docs/api#response-1)
-    /// @param tokenOut the address of currency to sell â€“ 0x address for ETH
-    /// @param tokenIn the address of currency to buy â€“ 0x address for ETH
+    /// @param tokenOut the address of currency to sell - 0x address for ETH
+    /// @param tokenIn the address of currency to buy - 0x address for ETH
     /// @param referee address of referee for msg.sender, 0x adress if none
     /// @param fee boolean if fee should be applied or not
     function executeZeroExSwap(
@@ -636,7 +636,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         emit CustomReferralRewardRateUpdated(account, referralRate);
     }
 
-    /// @dev returns the referee for a given user â€“ 0x address if none
+    /// @dev returns the referee for a given user - 0x address if none
     function getUserReferee(address user) external view returns (address) {
         return referralRegistry.getUserReferee(user);
     }

@@ -201,7 +201,7 @@ describe("FloozMultichainRouter", () => {
           .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, user.address);
       });
 
-      it("SYA holder â€“Â no fees", async () => {
+      it("SYA holder - no fees", async () => {
         token0reserve = await token0.balanceOf(pair.address);
         token1reserve = await token1.balanceOf(pair.address);
 
@@ -318,7 +318,7 @@ describe("FloozMultichainRouter", () => {
         expect(await token0.balanceOf(user.address)).to.be.equal(balanceToken0Before.sub(parseEther("1")));
       });
 
-      it("SYA holder â€“ no fees", async () => {
+      it("SYA holder - no fees", async () => {
         const balanceToken0Before = await token0.balanceOf(owner.address);
 
         token0reserve = await token0.balanceOf(pair.address);
@@ -463,7 +463,7 @@ describe("FloozMultichainRouter", () => {
         expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.0045")));
       });
 
-      it("SYA Holder â€“Â no fee", async () => {
+      it("SYA Holder - no fee", async () => {
         let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
         let WETHReserve = await WETH.balanceOf(WETHPair.address);
 
@@ -614,7 +614,7 @@ describe("FloozMultichainRouter", () => {
           );
       });
 
-      it("SYA holder â€“Â no fees", async () => {
+      it("SYA holder - no fees", async () => {
         let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
         let WETHReserve = await WETH.balanceOf(WETHPair.address);
 
@@ -776,7 +776,7 @@ describe("FloozMultichainRouter", () => {
           );
       });
 
-      it("SYA Holder â€“Â no fees", async () => {
+      it("SYA Holder - no fees", async () => {
         const WETHPairToken0 = await WETHPair.token0();
         await expect(
           router.connect(godModeUser).swapExactETHForTokens(
