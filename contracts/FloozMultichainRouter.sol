@@ -13,7 +13,7 @@ import "./interfaces/IReferralRegistry.sol";
 import "./interfaces/IWETH.sol";
 import "./interfaces/IZerox.sol";
 
-contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
+contract TestMultichainRouter is Ownable, Pausable, ReentrancyGuard {
     using SafeMath for uint256;
     using LibBytesV06 for bytes;
 
@@ -24,7 +24,6 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
     event FeeReceiverUpdated(address payable feeReceiver);
     event CustomReferralRewardRateUpdated(address indexed account, uint16 referralRate);
     event ReferralRewardPaid(address from, address indexed to, address tokenOut, address tokenReward, uint256 amount);
-    event MaxFeeUpdated(uint256 maxFee);
     event ForkCreated(address factory);
     event ForkUpdated(address factory);
 
@@ -39,9 +38,6 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
 
     // Numerator of fee
     uint16 public swapFee;
-
-    // Absolut number of maximum fee in WEI
-    uint256 public maxFee;
 
     // address of WETH
     address public immutable WETH;
@@ -77,15 +73,13 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
     /// @param _feeReceiver address that receives protocol fees
     /// @param _referralRegistry address of referral registry that stores referral anchors
     /// @param _zeroEx address of zeroX proxy contract to forward swaps
-    /// @param _maxFee maximum amount of fees to be paid by trader in WEI
     constructor(
         address _WETH,
         uint16 _swapFee,
         uint16 _referralRewardRate,
         address payable _feeReceiver,
         IReferralRegistry _referralRegistry,
-        address payable _zeroEx,
-        uint256 _maxFee
+        address payable _zeroEx
     ) public {
         WETH = _WETH;
         swapFee = _swapFee;
@@ -94,7 +88,6 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         referralRegistry = _referralRegistry;
         zeroEx = _zeroEx;
         referralsActivated = true;
-        maxFee = _maxFee;
     }
 
     /// @dev execute swap directly on Uniswap/Pancake & simular forks
@@ -554,10 +547,8 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
             if (additiveFee) {
                 swapAmount = amount;
                 feeAmount = swapAmount.mul(FEE_DENOMINATOR).div(FEE_DENOMINATOR.sub(swapFee)).sub(amount);
-                feeAmount = feeAmount > maxFee ? maxFee : feeAmount;
             } else {
                 feeAmount = amount.mul(swapFee).div(FEE_DENOMINATOR);
-                feeAmount = feeAmount > maxFee ? maxFee : feeAmount;
                 swapAmount = amount.sub(feeAmount);
             }
 
@@ -597,12 +588,6 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
     function updateSwapFee(uint16 newSwapFee) external onlyOwner {
         swapFee = newSwapFee;
         emit SwapFeeUpdated(newSwapFee);
-    }
-
-    /// @dev lets the admin update the maxFee amount
-    function updateMaxFee(uint16 newMaxFee) external onlyOwner {
-        maxFee = newMaxFee;
-        emit MaxFeeUpdated(newMaxFee);
     }
 
     /// @dev lets the admin update the referral reward rate
