@@ -104,8 +104,7 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
     referralFee,
     feeReceiver.address,
     referralRegistry.address,
-    zeroExContract,
-    parseEther("1")
+    zeroExContract
   );
   await routerMultichain.registerFork(factoryV2.address, initHash);
 

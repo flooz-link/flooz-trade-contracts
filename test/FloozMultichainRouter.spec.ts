@@ -130,8 +130,8 @@ describe("FloozMultichainRouter", () => {
       const feeAmount = swapAmount.mul(FEE_NUMERATOR).div(FEE_DENOMINATOR);
       const referralAmount = feeAmount.mul(1000).div(FEE_DENOMINATOR);
       const feeReceiverAmount = feeAmount.mul(9000).div(FEE_DENOMINATOR);
-      const expectedOutputAmountgodModeUser = BigNumber.from("1994998009989485035");
-      const expectedOutputAmount = BigNumber.from("1985023029839830096");
+      const expectedOutputAmountgodModeUser = BigNumber.from("1993998011983982051");
+      const expectedOutputAmount = BigNumber.from("1984028031814432019");
       const amountMin = BigNumber.from("1980000000000000000");
       let token0reserve: BigNumber, token1reserve: BigNumber;
 
@@ -233,7 +233,7 @@ describe("FloozMultichainRouter", () => {
       const token0Amount = expandTo18Decimals(1000000);
       const token1Amount = expandTo18Decimals(2000000);
 
-      const outputAmount = BigNumber.from("1985023029839830096");
+      const outputAmount = BigNumber.from("1984028031814432019");
       const expectedInTotal = parseEther("1");
       const amountInMax = parseEther("1.05");
       const expectedSwapAmount = expectedInTotal.mul(FEE_DENOMINATOR.sub(FEE_NUMERATOR)).div(FEE_DENOMINATOR);
@@ -354,8 +354,8 @@ describe("FloozMultichainRouter", () => {
     describe("swapTokensForExactETH", () => {
       const WETHPartnerAmount = expandTo18Decimals(1000);
       const ETHAmount = expandTo18Decimals(2000);
-      const expectedSwapAmount = BigNumber.from("501503884774467435");
-      const expectedSwapAmountGodMode = BigNumber.from("498995117238746076");
+      const expectedSwapAmount = BigNumber.from("501755391236239986");
+      const expectedSwapAmountGodMode = BigNumber.from("499245365542276039");
       const outputAmount = parseEther("0.995");
       const outputAmountWithFee = outputAmount.mul(FEE_DENOMINATOR).div(FEE_DENOMINATOR.sub(FEE_NUMERATOR));
       let WETHPartnerReserve: BigNumber, WETHReserve: BigNumber;
@@ -516,8 +516,8 @@ describe("FloozMultichainRouter", () => {
     describe("swapExactTokensForETH", () => {
       const WETHPartnerAmount = expandTo18Decimals(1000);
       const ETHAmount = expandTo18Decimals(2000);
-      const swapAmount = BigNumber.from("501503884774467435");
-      const expectedOutputAmount = BigNumber.from("1000000000000000001");
+      const swapAmount = BigNumber.from("501755391236239986");
+      const expectedOutputAmount = BigNumber.from("1000000000000000000");
 
       beforeEach(async () => {
         await addLiquidityWETHPair(WETHPartnerAmount, ETHAmount);
@@ -669,8 +669,8 @@ describe("FloozMultichainRouter", () => {
       const swapAmount = expandTo18Decimals(1);
       const swapAmountAfterFee = ethers.utils.parseEther("0.995");
       const referralReward = ethers.utils.parseEther("0.0005");
-      const expectedOutputAmount = BigNumber.from("496010101886875501");
-      const expectedOutputAmountGodMode = BigNumber.from("498501372440495302");
+      const expectedOutputAmount = BigNumber.from("495761598528917667");
+      const expectedOutputAmountGodMode = BigNumber.from("498251621566649025");
 
       beforeEach(async () => {
         await addLiquidityWETHPair(WETHPartnerAmount, ETHAmount);
@@ -727,7 +727,7 @@ describe("FloozMultichainRouter", () => {
         let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
         let WETHReserve = await WETH.balanceOf(WETHPair.address);
         const WETHPairToken0 = await WETHPair.token0();
-        const expectedOutputAmount = BigNumber.from("496010101886875501");
+        const expectedOutputAmount = BigNumber.from("495761598528917667");
 
         await expect(
           router.connect(user).swapExactETHForTokens(
@@ -821,10 +821,10 @@ describe("FloozMultichainRouter", () => {
     describe("swapETHForExactTokens", () => {
       const WETHPartnerAmount = expandTo18Decimals(1000);
       const ETHAmount = expandTo18Decimals(2000);
-      const outputAmount = BigNumber.from("496010101886875501");
-      const expectedSwapAmount = parseEther("1");
-      const inputAmountAfterFee = parseEther("0.995");
-      const referralReward = parseEther("0.0005");
+      const outputAmount = BigNumber.from("495761598528917667");
+      const expectedSwapAmount = parseEther("1").sub(1);
+      const inputAmountAfterFee = parseEther("0.995").sub(1);
+      const referralReward = parseEther("0.0005").sub(1);
 
       beforeEach(async () => {
         await addLiquidityWETHPair(WETHPartnerAmount, ETHAmount);
@@ -880,7 +880,7 @@ describe("FloozMultichainRouter", () => {
           );
 
         let feeBalanceAfter = await ethers.provider.getBalance(feeReceiver.address);
-        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.005")));
+        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.005")).sub(1));
       });
 
       it("referral", async () => {
@@ -1143,7 +1143,7 @@ describe("FloozMultichainRouter", () => {
     it("default referral rate", async () => {
       token0reserve = await token0.balanceOf(pair.address);
       token1reserve = await token1.balanceOf(pair.address);
-      const expectedOutputAmount = BigNumber.from("1985023029839830096");
+      const expectedOutputAmount = BigNumber.from("1984028031814432019");
 
       await expect(
         router.connect(user).swapExactTokensForTokens(
@@ -1175,11 +1175,11 @@ describe("FloozMultichainRouter", () => {
     it("custom referral rate", async () => {
       token0reserve = await token0.balanceOf(pair.address);
       token1reserve = await token1.balanceOf(pair.address);
-      let expectedOutputAmount = BigNumber.from("1985023029839830096");
+      let expectedOutputAmount = BigNumber.from("1984028031814432019");
 
       await router.updateCustomReferralRewardRate(godModeUser.address, 2500); // 25% of fee
       let referralReward = ethers.utils.parseEther("0.00125");
-      expectedOutputAmount = BigNumber.from("1985023029839830096");
+      expectedOutputAmount = BigNumber.from("1984028031814432019");
       token0reserve = await token0.balanceOf(pair.address);
       token1reserve = await token1.balanceOf(pair.address);
 

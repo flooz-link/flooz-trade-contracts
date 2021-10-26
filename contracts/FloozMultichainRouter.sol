@@ -13,7 +13,7 @@ import "./interfaces/IReferralRegistry.sol";
 import "./interfaces/IWETH.sol";
 import "./interfaces/IZerox.sol";
 
-contract TestMultichainRouter is Ownable, Pausable, ReentrancyGuard {
+contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
     using SafeMath for uint256;
     using LibBytesV06 for bytes;
 
@@ -258,12 +258,12 @@ contract TestMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         assert(IWETH(WETH).transfer(_pairFor(swapData.fork, path[0], path[1]), amounts[0]));
         _swap(swapData.fork, amounts, path, msg.sender);
 
-        if (feeAmount.add(referralReward) > 0)
-            _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
-
         // refund dust eth, if any
         if (msg.value > amounts[0].add(feeAmount).add(referralReward))
             TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0].add(feeAmount).add(referralReward));
+
+        if (feeAmount.add(referralReward) > 0)
+            _withdrawFeesAndRewards(address(0), path[path.length - 1], referee, feeAmount, referralReward);
     }
 
     /// @dev execute swap directly on Uniswap/Pancake/...
@@ -501,10 +501,10 @@ contract TestMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                     referee,
                     false
                 );
-                _withdrawFeesAndRewards(address(0), tokenIn, referee, feeAmount, referralReward);
                 (bool success, ) = impl.call{value: swapAmount}(data);
                 require(success, "FloozRouter: REVERTED");
                 TransferHelper.safeTransfer(tokenIn, msg.sender, IERC20(tokenIn).balanceOf(address(this)));
+                _withdrawFeesAndRewards(address(0), tokenIn, referee, feeAmount, referralReward);
             } else {
                 uint256 balanceBefore = IERC20(tokenOut).balanceOf(msg.sender);
                 (bool success, ) = impl.delegatecall(data);
@@ -592,6 +592,7 @@ contract TestMultichainRouter is Ownable, Pausable, ReentrancyGuard {
 
     /// @dev lets the admin update the referral reward rate
     function updateReferralRewardRate(uint16 newReferralRewardRate) external onlyOwner {
+        require(newReferralRewardRate <= FEE_DENOMINATOR, "FloozRouter: INVALID_RATE");
         referralRewardRate = newReferralRewardRate;
         emit ReferralRewardRateUpdated(newReferralRewardRate);
     }
@@ -676,7 +677,7 @@ contract TestMultichainRouter is Ownable, Pausable, ReentrancyGuard {
     ) internal pure returns (uint256 amountOut) {
         require(amountIn > 0, "FloozRouter: INSUFFICIENT_INPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
-        uint256 amountInWithFee = amountIn.mul((9975));
+        uint256 amountInWithFee = amountIn.mul((9970));
         uint256 numerator = amountInWithFee.mul(reserveOut);
         uint256 denominator = reserveIn.mul(10000).add(amountInWithFee);
         amountOut = numerator / denominator;
@@ -691,7 +692,7 @@ contract TestMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         require(amountOut > 0, "FloozRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "FloozRouter: INSUFFICIENT_LIQUIDITY");
         uint256 numerator = reserveIn.mul(amountOut).mul(10000);
-        uint256 denominator = reserveOut.sub(amountOut).mul(9975);
+        uint256 denominator = reserveOut.sub(amountOut).mul(9970);
         amountIn = (numerator / denominator).add(1);
     }
 
