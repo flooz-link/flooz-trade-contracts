@@ -38,6 +38,12 @@ module.exports = {
       chainId: 1,
       accounts: [process.env.PRIVATE_KEY_MAINNET],
     },
+    polygon: {
+      live: true,
+      url: "https://polygon-mainnet.infura.io/v3/1ab9fb1648044c74be945d9d28214ac6",
+      chainId: 137,
+      accounts: [process.env.PRIVATE_KEY_MAINNET],
+    },
     localhost: {
       live: false,
       tags: ["local"],
