@@ -21,15 +21,21 @@ module.exports = {
         accountsBalance: "1000000000000000000000000",
       },
     },
-    testnet: {
+    bsc_testnet: {
       url: "https://data-seed-prebsc-2-s2.binance.org:8545",
       chainId: 97,
       accounts: [process.env.PRIVATE_KEY_TESTNET],
     },
-    mainnet: {
+    bsc_mainnet: {
       live: true,
       url: "https://bsc-dataseed.binance.org/",
       chainId: 56,
+      accounts: [process.env.PRIVATE_KEY_MAINNET],
+    },
+    eth_mainnet: {
+      live: true,
+      url: "https://mainnet.infura.io/v3/1ab9fb1648044c74be945d9d28214ac6",
+      chainId: 1,
       accounts: [process.env.PRIVATE_KEY_MAINNET],
     },
     localhost: {

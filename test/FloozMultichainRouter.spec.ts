@@ -13,7 +13,7 @@ const overrides = {
   gasLimit: 9999999,
 };
 
-describe("FloozRouter", () => {
+describe("FloozMultichainRouter", () => {
   const [owner, wallet, user, godModeUser] = waffle.provider.getWallets();
   const loadFixture = createFixtureLoader([owner, user, godModeUser]);
 
@@ -29,7 +29,6 @@ describe("FloozRouter", () => {
   let pair: Contract;
   let WETHPair: Contract;
   let pancakeRouterV2: Contract;
-  let syaToken: Contract;
   let DTT: Contract;
   let referralRegistry: Contract;
   let factoryV2: Contract;
@@ -42,11 +41,10 @@ describe("FloozRouter", () => {
     WETH = fixture.WETH;
     WETHPartner = fixture.WETHPartner;
     factory = fixture.factoryV2;
-    router = fixture.router;
+    router = fixture.routerMultichain;
     pair = fixture.pair;
     WETHPair = fixture.WETHPair;
     pancakeRouterV2 = fixture.pancakeRouterV2;
-    syaToken = fixture.syaToken;
     DTT = fixture.dtt;
     referralRegistry = fixture.referralRegistry;
     factoryV2 = fixture.factoryV2;
@@ -110,11 +108,14 @@ describe("FloozRouter", () => {
       it("cannot swap with invalid factory address", async () => {
         await expect(
           router.swapExactTokensForTokens(
-            wallet.address,
+            {
+              fork: ethers.constants.AddressZero,
+              referee: ethers.constants.AddressZero,
+              fee: false,
+            },
             swapAmount,
             0,
             [token0.address, token1.address],
-            ethers.constants.AddressZero,
             overrides
           )
         ).to.be.revertedWith("FloozRouter: INVALID_FACTORY");
@@ -129,8 +130,8 @@ describe("FloozRouter", () => {
       const feeAmount = swapAmount.mul(FEE_NUMERATOR).div(FEE_DENOMINATOR);
       const referralAmount = feeAmount.mul(1000).div(FEE_DENOMINATOR);
       const feeReceiverAmount = feeAmount.mul(9000).div(FEE_DENOMINATOR);
-      const expectedOutputAmountgodModeUser = BigNumber.from("1995998007993988021");
-      const expectedOutputAmount = BigNumber.from("1986018027864238150");
+      const expectedOutputAmountgodModeUser = BigNumber.from("1993998011983982051");
+      const expectedOutputAmount = BigNumber.from("1984028031814432019");
       const amountMin = BigNumber.from("1980000000000000000");
       let token0reserve: BigNumber, token1reserve: BigNumber;
 
@@ -143,16 +144,17 @@ describe("FloozRouter", () => {
 
       it("happy path", async () => {
         await expect(
-          router
-            .connect(user)
-            .swapExactTokensForTokens(
-              factory.address,
-              swapAmount,
-              amountMin,
-              [token0.address, token1.address],
-              ethers.constants.AddressZero,
-              overrides
-            )
+          router.connect(user).swapExactTokensForTokens(
+            {
+              fork: factory.address,
+              referee: ethers.constants.AddressZero,
+              fee: true,
+            },
+            swapAmount,
+            amountMin,
+            [token0.address, token1.address],
+            overrides
+          )
         )
           .to.emit(token0, "Transfer")
           .withArgs(user.address, pair.address, swapAmountAfterFee)
@@ -171,16 +173,17 @@ describe("FloozRouter", () => {
         token1reserve = await token1.balanceOf(pair.address);
 
         await expect(
-          router
-            .connect(user)
-            .swapExactTokensForTokens(
-              factory.address,
-              swapAmount,
-              amountMin,
-              [token0.address, token1.address],
-              godModeUser.address,
-              overrides
-            )
+          router.connect(user).swapExactTokensForTokens(
+            {
+              fork: factory.address,
+              referee: godModeUser.address,
+              fee: true,
+            },
+            swapAmount,
+            amountMin,
+            [token0.address, token1.address],
+            overrides
+          )
         )
           .to.emit(token0, "Transfer")
           .withArgs(user.address, pair.address, swapAmountAfterFee)
@@ -198,21 +201,22 @@ describe("FloozRouter", () => {
           .withArgs(router.address, swapAmountAfterFee, 0, 0, expectedOutputAmount, user.address);
       });
 
-      it("SYA holder – no fees", async () => {
+      it("SYA holder - no fees", async () => {
         token0reserve = await token0.balanceOf(pair.address);
         token1reserve = await token1.balanceOf(pair.address);
 
         await expect(
-          router
-            .connect(godModeUser)
-            .swapExactTokensForTokens(
-              factory.address,
-              swapAmount,
-              amountMin,
-              [token0.address, token1.address],
-              ethers.constants.AddressZero,
-              overrides
-            )
+          router.connect(godModeUser).swapExactTokensForTokens(
+            {
+              fork: factory.address,
+              referee: ethers.constants.AddressZero,
+              fee: false,
+            },
+            swapAmount,
+            amountMin,
+            [token0.address, token1.address],
+            overrides
+          )
         )
           .to.emit(token0, "Transfer")
           .withArgs(godModeUser.address, pair.address, swapAmount)
@@ -229,7 +233,7 @@ describe("FloozRouter", () => {
       const token0Amount = expandTo18Decimals(1000000);
       const token1Amount = expandTo18Decimals(2000000);
 
-      const outputAmount = BigNumber.from("1986018027864238150");
+      const outputAmount = BigNumber.from("1984028031814432019");
       const expectedInTotal = parseEther("1");
       const amountInMax = parseEther("1.05");
       const expectedSwapAmount = expectedInTotal.mul(FEE_DENOMINATOR.sub(FEE_NUMERATOR)).div(FEE_DENOMINATOR);
@@ -253,16 +257,17 @@ describe("FloozRouter", () => {
 
         await token0.approve(router.address, ethers.constants.MaxUint256);
         await expect(
-          router
-            .connect(user)
-            .swapTokensForExactTokens(
-              factory.address,
-              outputAmount,
-              amountInMax,
-              [token0.address, token1.address],
-              constants.AddressZero,
-              overrides
-            )
+          router.connect(user).swapTokensForExactTokens(
+            {
+              fork: factory.address,
+              referee: ethers.constants.AddressZero,
+              fee: true,
+            },
+            outputAmount,
+            amountInMax,
+            [token0.address, token1.address],
+            overrides
+          )
         )
           .to.emit(token0, "Transfer")
           .withArgs(user.address, pair.address, expectedSwapAmount)
@@ -285,16 +290,17 @@ describe("FloozRouter", () => {
 
         await token0.approve(router.address, ethers.constants.MaxUint256);
         await expect(
-          router
-            .connect(user)
-            .swapTokensForExactTokens(
-              factory.address,
-              outputAmount,
-              amountInMax,
-              [token0.address, token1.address],
-              godModeUser.address,
-              overrides
-            )
+          router.connect(user).swapTokensForExactTokens(
+            {
+              fork: factory.address,
+              referee: godModeUser.address,
+              fee: true,
+            },
+            outputAmount,
+            amountInMax,
+            [token0.address, token1.address],
+            overrides
+          )
         )
           .to.emit(token0, "Transfer")
           .withArgs(user.address, pair.address, expectedSwapAmount)
@@ -312,7 +318,7 @@ describe("FloozRouter", () => {
         expect(await token0.balanceOf(user.address)).to.be.equal(balanceToken0Before.sub(parseEther("1")));
       });
 
-      it("SYA holder – no fees", async () => {
+      it("SYA holder - no fees", async () => {
         const balanceToken0Before = await token0.balanceOf(owner.address);
 
         token0reserve = await token0.balanceOf(pair.address);
@@ -321,11 +327,14 @@ describe("FloozRouter", () => {
         await token0.approve(router.address, ethers.constants.MaxUint256);
         await expect(
           router.swapTokensForExactTokens(
-            factory.address,
+            {
+              fork: factory.address,
+              referee: constants.AddressZero,
+              fee: false,
+            },
             outputAmount,
             amountInMax,
             [token0.address, token1.address],
-            constants.AddressZero,
             overrides
           )
         )
@@ -345,8 +354,8 @@ describe("FloozRouter", () => {
     describe("swapTokensForExactETH", () => {
       const WETHPartnerAmount = expandTo18Decimals(1000);
       const ETHAmount = expandTo18Decimals(2000);
-      const expectedSwapAmount = BigNumber.from("501252630323177621");
-      const expectedSwapAmountGodMode = BigNumber.from("498745119685019249");
+      const expectedSwapAmount = BigNumber.from("501755391236239986");
+      const expectedSwapAmountGodMode = BigNumber.from("499245365542276039");
       const outputAmount = parseEther("0.995");
       const outputAmountWithFee = outputAmount.mul(FEE_DENOMINATOR).div(FEE_DENOMINATOR.sub(FEE_NUMERATOR));
       let WETHPartnerReserve: BigNumber, WETHReserve: BigNumber;
@@ -367,16 +376,17 @@ describe("FloozRouter", () => {
 
         let balanceBefore = await ethers.provider.getBalance(user.address);
         await expect(
-          router
-            .connect(user)
-            .swapTokensForExactETH(
-              factory.address,
-              outputAmount,
-              ethers.constants.MaxUint256,
-              [WETHPartner.address, WETH.address],
-              ethers.constants.AddressZero,
-              overrides
-            )
+          router.connect(user).swapTokensForExactETH(
+            {
+              fork: factory.address,
+              referee: constants.AddressZero,
+              fee: true,
+            },
+            outputAmount,
+            ethers.constants.MaxUint256,
+            [WETHPartner.address, WETH.address],
+            overrides
+          )
         )
           .to.emit(WETHPartner, "Transfer")
           .withArgs(user.address, WETHPair.address, expectedSwapAmount)
@@ -412,16 +422,17 @@ describe("FloozRouter", () => {
 
         let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
         await expect(
-          router
-            .connect(user)
-            .swapTokensForExactETH(
-              factory.address,
-              outputAmount,
-              ethers.constants.MaxUint256,
-              [WETHPartner.address, WETH.address],
-              godModeUser.address,
-              overrides
-            )
+          router.connect(user).swapTokensForExactETH(
+            {
+              fork: factory.address,
+              referee: godModeUser.address,
+              fee: true,
+            },
+            outputAmount,
+            ethers.constants.MaxUint256,
+            [WETHPartner.address, WETH.address],
+            overrides
+          )
         )
           .to.emit(WETHPartner, "Transfer")
           .withArgs(user.address, WETHPair.address, expectedSwapAmount)
@@ -452,7 +463,7 @@ describe("FloozRouter", () => {
         expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.0045")));
       });
 
-      it("SYA Holder – no fee", async () => {
+      it("SYA Holder - no fee", async () => {
         let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
         let WETHReserve = await WETH.balanceOf(WETHPair.address);
 
@@ -462,16 +473,17 @@ describe("FloozRouter", () => {
 
         let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
         await expect(
-          router
-            .connect(godModeUser)
-            .swapTokensForExactETH(
-              factory.address,
-              outputAmount,
-              ethers.constants.MaxUint256,
-              [WETHPartner.address, WETH.address],
-              constants.AddressZero,
-              overrides
-            )
+          router.connect(godModeUser).swapTokensForExactETH(
+            {
+              fork: factory.address,
+              referee: constants.AddressZero,
+              fee: false,
+            },
+            outputAmount,
+            ethers.constants.MaxUint256,
+            [WETHPartner.address, WETH.address],
+            overrides
+          )
         )
           .to.emit(WETHPartner, "Transfer")
           .withArgs(godModeUser.address, WETHPair.address, expectedSwapAmountGodMode)
@@ -504,7 +516,7 @@ describe("FloozRouter", () => {
     describe("swapExactTokensForETH", () => {
       const WETHPartnerAmount = expandTo18Decimals(1000);
       const ETHAmount = expandTo18Decimals(2000);
-      const swapAmount = BigNumber.from("501252630323177621");
+      const swapAmount = BigNumber.from("501755391236239986");
       const expectedOutputAmount = BigNumber.from("1000000000000000000");
 
       beforeEach(async () => {
@@ -521,16 +533,17 @@ describe("FloozRouter", () => {
         await WETHPartner.approve(router.address, ethers.constants.MaxUint256);
         const WETHPairToken0 = await WETHPair.token0();
         await expect(
-          router
-            .connect(user)
-            .swapExactTokensForETH(
-              factory.address,
-              swapAmount,
-              0,
-              [WETHPartner.address, WETH.address],
-              ethers.constants.AddressZero,
-              overrides
-            )
+          router.connect(user).swapExactTokensForETH(
+            {
+              fork: factory.address,
+              referee: constants.AddressZero,
+              fee: true,
+            },
+            swapAmount,
+            0,
+            [WETHPartner.address, WETH.address],
+            overrides
+          )
         )
           .to.emit(WETHPartner, "Transfer")
           .withArgs(user.address, WETHPair.address, swapAmount)
@@ -563,16 +576,17 @@ describe("FloozRouter", () => {
         await WETHPartner.approve(router.address, ethers.constants.MaxUint256);
         const WETHPairToken0 = await WETHPair.token0();
         await expect(
-          router
-            .connect(user)
-            .swapExactTokensForETH(
-              factory.address,
-              swapAmount,
-              0,
-              [WETHPartner.address, WETH.address],
-              godModeUser.address,
-              overrides
-            )
+          router.connect(user).swapExactTokensForETH(
+            {
+              fork: factory.address,
+              referee: godModeUser.address,
+              fee: true,
+            },
+            swapAmount,
+            0,
+            [WETHPartner.address, WETH.address],
+            overrides
+          )
         )
           .to.emit(WETHPartner, "Transfer")
           .withArgs(user.address, WETHPair.address, swapAmount)
@@ -600,7 +614,7 @@ describe("FloozRouter", () => {
           );
       });
 
-      it("SYA holder – no fees", async () => {
+      it("SYA holder - no fees", async () => {
         let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
         let WETHReserve = await WETH.balanceOf(WETHPair.address);
 
@@ -609,16 +623,17 @@ describe("FloozRouter", () => {
         await WETHPartner.connect(godModeUser).approve(router.address, ethers.constants.MaxUint256);
         const WETHPairToken0 = await WETHPair.token0();
         await expect(
-          router
-            .connect(godModeUser)
-            .swapExactTokensForETH(
-              factory.address,
-              swapAmount,
-              0,
-              [WETHPartner.address, WETH.address],
-              constants.AddressZero,
-              overrides
-            )
+          router.connect(godModeUser).swapExactTokensForETH(
+            {
+              fork: factory.address,
+              referee: constants.AddressZero,
+              fee: false,
+            },
+            swapAmount,
+            0,
+            [WETHPartner.address, WETH.address],
+            overrides
+          )
         )
           .to.emit(WETHPartner, "Transfer")
           .withArgs(godModeUser.address, WETHPair.address, swapAmount)
@@ -654,8 +669,8 @@ describe("FloozRouter", () => {
       const swapAmount = expandTo18Decimals(1);
       const swapAmountAfterFee = ethers.utils.parseEther("0.995");
       const referralReward = ethers.utils.parseEther("0.0005");
-      const expectedOutputAmount = BigNumber.from("496258605121264266");
-      const expectedOutputAmountGodMode = BigNumber.from("498751123189528425");
+      const expectedOutputAmount = BigNumber.from("495761598528917667");
+      const expectedOutputAmountGodMode = BigNumber.from("498251621566649025");
 
       beforeEach(async () => {
         await addLiquidityWETHPair(WETHPartnerAmount, ETHAmount);
@@ -667,18 +682,19 @@ describe("FloozRouter", () => {
 
         const WETHPairToken0 = await WETHPair.token0();
         await expect(
-          router
-            .connect(user)
-            .swapExactETHForTokens(
-              factory.address,
-              0,
-              [WETH.address, WETHPartner.address],
-              ethers.constants.AddressZero,
-              {
-                ...overrides,
-                value: swapAmount,
-              }
-            )
+          router.connect(user).swapExactETHForTokens(
+            {
+              fork: factory.address,
+              referee: constants.AddressZero,
+              fee: true,
+            },
+            0,
+            [WETH.address, WETHPartner.address],
+            {
+              ...overrides,
+              value: swapAmount,
+            }
+          )
         )
           .to.emit(WETH, "Transfer")
           .withArgs(router.address, WETHPair.address, swapAmountAfterFee)
@@ -711,15 +727,22 @@ describe("FloozRouter", () => {
         let WETHPartnerReserve = await WETHPartner.balanceOf(WETHPair.address);
         let WETHReserve = await WETH.balanceOf(WETHPair.address);
         const WETHPairToken0 = await WETHPair.token0();
-        const expectedOutputAmount = BigNumber.from("496258605121264266");
+        const expectedOutputAmount = BigNumber.from("495761598528917667");
 
         await expect(
-          router
-            .connect(user)
-            .swapExactETHForTokens(factory.address, 0, [WETH.address, WETHPartner.address], godModeUser.address, {
+          router.connect(user).swapExactETHForTokens(
+            {
+              fork: factory.address,
+              referee: godModeUser.address,
+              fee: true,
+            },
+            0,
+            [WETH.address, WETHPartner.address],
+            {
               ...overrides,
               value: swapAmount,
-            })
+            }
+          )
         )
           .to.emit(WETH, "Transfer")
           .withArgs(router.address, WETHPair.address, swapAmountAfterFee)
@@ -753,21 +776,22 @@ describe("FloozRouter", () => {
           );
       });
 
-      it("SYA Holder – no fees", async () => {
+      it("SYA Holder - no fees", async () => {
         const WETHPairToken0 = await WETHPair.token0();
         await expect(
-          router
-            .connect(godModeUser)
-            .swapExactETHForTokens(
-              factory.address,
-              0,
-              [WETH.address, WETHPartner.address],
-              ethers.constants.AddressZero,
-              {
-                ...overrides,
-                value: swapAmount,
-              }
-            )
+          router.connect(godModeUser).swapExactETHForTokens(
+            {
+              fork: factory.address,
+              referee: ethers.constants.AddressZero,
+              fee: false,
+            },
+            0,
+            [WETH.address, WETHPartner.address],
+            {
+              ...overrides,
+              value: swapAmount,
+            }
+          )
         )
           .to.emit(WETH, "Transfer")
           .withArgs(router.address, WETHPair.address, swapAmount)
@@ -797,8 +821,8 @@ describe("FloozRouter", () => {
     describe("swapETHForExactTokens", () => {
       const WETHPartnerAmount = expandTo18Decimals(1000);
       const ETHAmount = expandTo18Decimals(2000);
-      const outputAmount = BigNumber.from("496258605121264266");
-      const expectedSwapAmount = parseEther("1");
+      const outputAmount = BigNumber.from("495761598528917667");
+      const expectedSwapAmount = parseEther("1").sub(1);
       const inputAmountAfterFee = parseEther("0.995").sub(1);
       const referralReward = parseEther("0.0005").sub(1);
 
@@ -817,23 +841,25 @@ describe("FloozRouter", () => {
         let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
 
         await expect(
-          router
-            .connect(user)
-            .swapETHForExactTokens(
-              factory.address,
-              outputAmount,
-              [WETH.address, WETHPartner.address],
-              constants.AddressZero,
-              {
-                ...overrides,
-                value: expectedSwapAmount.add(3), // should send back the dust
-              }
-            )
+          router.connect(user).swapETHForExactTokens(
+            {
+              fork: factory.address,
+              referee: ethers.constants.AddressZero,
+              fee: true,
+            },
+            outputAmount,
+            [WETH.address, WETHPartner.address],
+            {
+              ...overrides,
+              value: expectedSwapAmount.add(3), // should send back the dust
+            }
+          )
         )
           .to.emit(WETH, "Transfer")
           .withArgs(router.address, WETHPair.address, inputAmountAfterFee)
           .to.emit(WETHPartner, "Transfer")
           .withArgs(WETHPair.address, user.address, outputAmount)
+
           .to.emit(WETHPair, "Sync")
           .withArgs(
             WETHPairToken0 === WETHPartner.address
@@ -854,7 +880,7 @@ describe("FloozRouter", () => {
           );
 
         let feeBalanceAfter = await ethers.provider.getBalance(feeReceiver.address);
-        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.005").sub(1)));
+        expect(feeBalanceAfter).to.be.equal(feeBalanceBefore.add(parseEther("0.005")).sub(1));
       });
 
       it("referral", async () => {
@@ -865,18 +891,19 @@ describe("FloozRouter", () => {
         let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
 
         await expect(
-          router
-            .connect(user)
-            .swapETHForExactTokens(
-              factory.address,
-              outputAmount,
-              [WETH.address, WETHPartner.address],
-              godModeUser.address,
-              {
-                ...overrides,
-                value: expectedSwapAmount,
-              }
-            )
+          router.connect(user).swapETHForExactTokens(
+            {
+              fork: factory.address,
+              referee: godModeUser.address,
+              fee: true,
+            },
+            outputAmount,
+            [WETH.address, WETHPartner.address],
+            {
+              ...overrides,
+              value: expectedSwapAmount,
+            }
+          )
         )
           .to.emit(WETH, "Transfer")
           .withArgs(router.address, WETHPair.address, inputAmountAfterFee)
@@ -921,18 +948,19 @@ describe("FloozRouter", () => {
         let feeBalanceBefore = await ethers.provider.getBalance(feeReceiver.address);
 
         await expect(
-          router
-            .connect(godModeUser)
-            .swapETHForExactTokens(
-              factory.address,
-              outputAmount,
-              [WETH.address, WETHPartner.address],
-              constants.AddressZero,
-              {
-                ...overrides,
-                value: inputAmountAfterFee,
-              }
-            )
+          router.connect(godModeUser).swapETHForExactTokens(
+            {
+              fork: factory.address,
+              referee: constants.AddressZero,
+              fee: false,
+            },
+            outputAmount,
+            [WETH.address, WETHPartner.address],
+            {
+              ...overrides,
+              value: inputAmountAfterFee,
+            }
+          )
         )
           .to.emit(WETH, "Transfer")
           .withArgs(router.address, WETHPair.address, inputAmountAfterFee)
@@ -990,27 +1018,29 @@ describe("FloozRouter", () => {
         //reset referral
         await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
         await DTT.connect(user).approve(router.address, ethers.constants.MaxUint256);
-        await router
-          .connect(user)
-          .swapExactTokensForETHSupportingFeeOnTransferTokens(
-            factory.address,
-            swapAmount,
-            0,
-            [DTT.address, WETH.address],
-            ethers.constants.AddressZero,
-            overrides
-          );
+        await router.connect(user).swapExactTokensForETHSupportingFeeOnTransferTokens(
+          {
+            fork: factory.address,
+            referee: constants.AddressZero,
+            fee: true,
+          },
+          swapAmount,
+          0,
+          [DTT.address, WETH.address],
+          overrides
+        );
 
-        await router
-          .connect(user)
-          .swapExactTokensForETHSupportingFeeOnTransferTokens(
-            factory.address,
-            swapAmount,
-            0,
-            [DTT.address, WETH.address],
-            godModeUser.address,
-            overrides
-          );
+        await router.connect(user).swapExactTokensForETHSupportingFeeOnTransferTokens(
+          {
+            fork: factory.address,
+            referee: godModeUser.address,
+            fee: true,
+          },
+          swapAmount,
+          0,
+          [DTT.address, WETH.address],
+          overrides
+        );
       });
     });
 
@@ -1026,23 +1056,27 @@ describe("FloozRouter", () => {
         //reset referral
         await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
 
-        await router
-          .connect(user)
-          .swapExactETHForTokensSupportingFeeOnTransferTokens(
-            factory.address,
-            amountOutMin,
-            [WETH.address, DTT.address],
-            ethers.constants.AddressZero,
-            {
-              value: swapAmount,
-            }
-          );
-
-        await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
-          factory.address,
+        await router.connect(user).swapExactETHForTokensSupportingFeeOnTransferTokens(
+          {
+            fork: factory.address,
+            referee: ethers.constants.AddressZero,
+            fee: true,
+          },
           amountOutMin,
           [WETH.address, DTT.address],
-          godModeUser.address,
+          {
+            value: swapAmount,
+          }
+        );
+
+        await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
+          {
+            fork: factory.address,
+            referee: godModeUser.address,
+            fee: true,
+          },
+          amountOutMin,
+          [WETH.address, DTT.address],
           {
             value: swapAmount,
           }
@@ -1062,27 +1096,29 @@ describe("FloozRouter", () => {
         await referralRegistry.updateReferralAnchor(user.address, constants.AddressZero);
 
         await DTT.connect(user).approve(router.address, ethers.constants.MaxUint256);
-        await router
-          .connect(user)
-          .swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            factory.address,
-            swapAmount,
-            0,
-            [DTT.address, WETH.address],
-            ethers.constants.AddressZero,
-            overrides
-          );
+        await router.connect(user).swapExactTokensForTokensSupportingFeeOnTransferTokens(
+          {
+            fork: factory.address,
+            referee: ethers.constants.AddressZero,
+            fee: true,
+          },
+          swapAmount,
+          0,
+          [DTT.address, WETH.address],
+          overrides
+        );
 
-        await router
-          .connect(user)
-          .swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            factory.address,
-            swapAmount,
-            0,
-            [DTT.address, WETH.address],
-            godModeUser.address,
-            overrides
-          );
+        await router.connect(user).swapExactTokensForTokensSupportingFeeOnTransferTokens(
+          {
+            fork: factory.address,
+            referee: godModeUser.address,
+            fee: true,
+          },
+          swapAmount,
+          0,
+          [DTT.address, WETH.address],
+          overrides
+        );
       });
     });
   });
@@ -1107,19 +1143,20 @@ describe("FloozRouter", () => {
     it("default referral rate", async () => {
       token0reserve = await token0.balanceOf(pair.address);
       token1reserve = await token1.balanceOf(pair.address);
-      const expectedOutputAmount = BigNumber.from("1986018027864238150");
+      const expectedOutputAmount = BigNumber.from("1984028031814432019");
 
       await expect(
-        router
-          .connect(user)
-          .swapExactTokensForTokens(
-            factory.address,
-            swapAmount,
-            0,
-            [token0.address, token1.address],
-            godModeUser.address,
-            overrides
-          )
+        router.connect(user).swapExactTokensForTokens(
+          {
+            fork: factory.address,
+            referee: godModeUser.address,
+            fee: true,
+          },
+          swapAmount,
+          0,
+          [token0.address, token1.address],
+          overrides
+        )
       )
         .to.emit(token0, "Transfer")
         .withArgs(user.address, pair.address, swapAmountAfterFee)
@@ -1138,25 +1175,26 @@ describe("FloozRouter", () => {
     it("custom referral rate", async () => {
       token0reserve = await token0.balanceOf(pair.address);
       token1reserve = await token1.balanceOf(pair.address);
-      let expectedOutputAmount = BigNumber.from("1986018027864238150");
+      let expectedOutputAmount = BigNumber.from("1984028031814432019");
 
       await router.updateCustomReferralRewardRate(godModeUser.address, 2500); // 25% of fee
       let referralReward = ethers.utils.parseEther("0.00125");
-      expectedOutputAmount = BigNumber.from("1986018027864238150");
+      expectedOutputAmount = BigNumber.from("1984028031814432019");
       token0reserve = await token0.balanceOf(pair.address);
       token1reserve = await token1.balanceOf(pair.address);
 
       await expect(
-        router
-          .connect(user)
-          .swapExactTokensForTokens(
-            factory.address,
-            swapAmount,
-            0,
-            [token0.address, token1.address],
-            godModeUser.address,
-            overrides
-          )
+        router.connect(user).swapExactTokensForTokens(
+          {
+            fork: factory.address,
+            referee: godModeUser.address,
+            fee: true,
+          },
+          swapAmount,
+          0,
+          [token0.address, token1.address],
+          overrides
+        )
       )
         .to.emit(token0, "Transfer")
         .withArgs(user.address, pair.address, swapAmountAfterFee)
@@ -1184,10 +1222,13 @@ describe("FloozRouter", () => {
         await expect(
           router
             .swapExactETHForTokens(
-              factory.address,
+              {
+                fork: factory.address,
+                referee: ethers.constants.AddressZero,
+                fee: true,
+              },
               0,
               [WETH.address, WETHPartner.address],
-              ethers.constants.AddressZero,
               {
                 ...overrides,
                 value: swapAmount,
@@ -1204,10 +1245,13 @@ describe("FloozRouter", () => {
 
       it("happy path without referral", async () => {
         await router.swapExactETHForTokens(
-          factory.address,
+          {
+            fork: factory.address,
+            referee: ethers.constants.AddressZero,
+            fee: true,
+          },
           0,
           [WETH.address, WETHPartner.address],
-          ethers.constants.AddressZero,
           {
             ...overrides,
             value: swapAmount,
@@ -1259,20 +1303,6 @@ describe("FloozRouter", () => {
       await expect(await router.updateFeeReceiver(wallet.address))
         .to.emit(router, "FeeReceiverUpdated")
         .withArgs(wallet.address);
-    });
-
-    it("only owner can update balanceThreshold", async () => {
-      await expect(router.connect(wallet).updateBalanceThreshold(104)).to.be.revertedWith(
-        "Ownable: caller is not the owner"
-      );
-
-      await expect(await router.updateBalanceThreshold(104))
-        .to.emit(router, "BalanceThresholdUpdated")
-        .withArgs(104);
-    });
-
-    it("throws if trying to set invalid referralRewardRate", async () => {
-      await expect(router.updateReferralRewardRate(15500)).to.be.revertedWith("FloozRouter: INVALID_RATE");
     });
 
     it("only owner can update referralRewardRate", async () => {

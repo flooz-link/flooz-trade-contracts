@@ -15,10 +15,12 @@ interface V2Fixture {
   WETHPartner: Contract;
   factoryV2: Contract;
   router: Contract;
+  routerMultichain: Contract;
   pair: Contract;
   WETHPair: Contract;
   routerEventEmitter: Contract;
   feeReceiver: Contract;
+  feeReceiverMultichain: Contract;
   pancakeRouterV2: Contract;
   syaPair: Contract;
   dtt: Contract;
@@ -34,10 +36,12 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
   let SYA = await ethers.getContractFactory("SYAMOCK");
   let WETH9 = await ethers.getContractFactory("WETH9");
   let FloozRouter = await ethers.getContractFactory("FloozRouter");
+  let FloozMultichainRouter = await ethers.getContractFactory("FloozMultichainRouter");
   let ReferralRegistry = await ethers.getContractFactory("ReferralRegistry");
   let PancakeFactory = await ethers.getContractFactory("PancakeFactory");
   let RouterEventEmitter = await ethers.getContractFactory("RouterEventEmitter");
   let FeeReceiver = await ethers.getContractFactory("FeeReceiver");
+  let FeeReceiverMultichain = await ethers.getContractFactory("FeeReceiverMultichain");
   let PancakeRouterV2 = await ethers.getContractFactory("PancakeRouter");
   let Dtt = await ethers.getContractFactory("DeflatingERC20");
 
@@ -74,6 +78,9 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
     5000
   );
 
+  // deploy Fee Receiver Multichain
+  const feeReceiverMultichain = await FeeReceiverMultichain.deploy(WETH.address);
+
   // deploy referral registry
   const referralRegistry = await ReferralRegistry.deploy();
 
@@ -90,8 +97,20 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
   );
   await router.updateFork(factoryV2.address, initHash, true);
 
-  // grant flooz router anchor manager privilege to register anchors
+  // deploy Flooz Multichain router
+  const routerMultichain = await FloozMultichainRouter.deploy(
+    WETH.address,
+    swapFee,
+    referralFee,
+    feeReceiver.address,
+    referralRegistry.address,
+    zeroExContract
+  );
+  await routerMultichain.registerFork(factoryV2.address, initHash);
+
+  // grant flooz routers anchor manager privilege to register anchors
   await referralRegistry.updateAnchorManager(router.address, true);
+  await referralRegistry.updateAnchorManager(routerMultichain.address, true);
   // grant owner anchor manager privilege to register anchors
   await referralRegistry.updateAnchorManager(wallet.address, true);
 
@@ -125,10 +144,12 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
     WETHPartner,
     factoryV2,
     router,
+    routerMultichain,
     pair,
     WETHPair,
     routerEventEmitter,
     feeReceiver,
+    feeReceiverMultichain,
     pancakeRouterV2,
     syaPair,
     dtt,
