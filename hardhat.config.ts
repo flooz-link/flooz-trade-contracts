@@ -22,7 +22,8 @@ module.exports = {
       },
     },
     bsc_testnet: {
-      url: "https://data-seed-prebsc-2-s2.binance.org:8545",
+      live: false,
+      url: "https://data-seed-prebsc-2-s2.binance.org",
       chainId: 97,
       accounts: [process.env.PRIVATE_KEY_TESTNET],
     },

@@ -15,8 +15,10 @@
     "deploy:binance-testnet": "hardhat compile && hardhat deploy --network bsc_testnet && npx hardhat etherscan-verify --network bsc_testnet",
     "deploy:binance-mainnet": "hardhat compile && hardhat deploy --network bsc_mainnet",
     "deploy:ethereum-mainnet": "hardhat compile && hardhat deploy --network eth_mainnet --tags floozMultichainRouter",
+    "deploy:polygon": "hardhat compile && hardhat deploy --network polygon --tags floozMultichainRouter",
     "verify:binance-mainnet": "hardhat etherscan-verify --network bsc_mainnet",
     "verify:ethereum-mainnet": "hardhat etherscan-verify --network eth_mainnet",
+    "verify:polygon": "hardhat etherscan-verify --network polygon",
     "deploy:localhost": "hardhat compile && hardhat deploy --network localhost",
     "deploy:hardhat": "hardhat compile && hardhat deploy --network hardhat"
   },
