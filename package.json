@@ -14,9 +14,13 @@
     "flatten": "./tasks/flatten.sh",
     "deploy:binance-testnet": "hardhat compile && hardhat deploy --network bsc_testnet && npx hardhat etherscan-verify --network bsc_testnet",
     "deploy:binance-mainnet": "hardhat compile && hardhat deploy --network bsc_mainnet",
+    "deploy:polygon": "hardhat compile && hardhat deploy --network polygon --tags floozRouter",
+    "deploy:avalanche": "hardhat compile && hardhat deploy --network avalanche --tags floozRouter",
     "deploy:ethereum-mainnet": "hardhat compile && hardhat deploy --network eth_mainnet --tags floozMultichainRouter",
     "verify:binance-mainnet": "hardhat etherscan-verify --network bsc_mainnet",
     "verify:ethereum-mainnet": "hardhat etherscan-verify --network eth_mainnet",
+    "verify:polygon": "hardhat etherscan-verify --network polygon",
+    "verify:avalanche": "hardhat etherscan-verify --network avalanche",
     "deploy:localhost": "hardhat compile && hardhat deploy --network localhost",
     "deploy:hardhat": "hardhat compile && hardhat deploy --network hardhat"
   },
@@ -26,6 +30,7 @@
   "dependencies": {
     "@0x/contracts-utils": "^4.7.18",
     "@float-capital/solidity-coverage": "^0.7.17",
+    "@nomiclabs/hardhat-etherscan": "^2.1.8",
     "@nomiclabs/hardhat-truffle5": "^2.0.0",
     "@nomiclabs/hardhat-web3": "^2.0.0",
     "@pancakeswap-libs/pancake-swap-core": "^0.1.0",
@@ -43,7 +48,6 @@
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.0",
-    "@nomiclabs/hardhat-etherscan": "^2.1.6",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^3.3.0",
     "@openzeppelin/test-helpers": "^0.5.9",
