@@ -14,6 +14,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   let WETH, syaToken, factoryV1, factoryV2, initCodeV1, initCodeV2, pancakeRouterV2, contractOwner;
 
   const zeroEx = "0xdef1c0ded9bec7f1a1670819833240f027b25eff";
+  const oneInch = "0x1111111254fb6c44bac0bed2854e76f90643097d";
 
   if (network.name == "mainnet") {
     WETH = process.env.MAINNET_WETH;
@@ -47,14 +48,14 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     from: deployer,
     log: true,
     contract: "FloozRouter",
-    args: [WETH, swapFee, referralReward, feeReceiver, balanceThreshold, syaToken, referralRegistry, zeroEx],
+    args: [WETH, swapFee, referralReward, feeReceiver, balanceThreshold, syaToken, referralRegistry, zeroEx, oneInch],
   });
 
   // register Pancakeswap V1 & V2
-  await execute("FloozRouter", { from: deployer, log: true }, "updateFork", factoryV1, initCodeV1, true);
-  await execute("FloozRouter", { from: deployer, log: true }, "updateFork", factoryV2, initCodeV2, true);
+  //await execute("FloozRouter", { from: deployer, log: true }, "updateFork", factoryV1, initCodeV1, true);
+  //await execute("FloozRouter", { from: deployer, log: true }, "updateFork", factoryV2, initCodeV2, true);
 
-  await execute("FloozRouter", { from: deployer, log: true }, "transferOwnership", contractOwner);
+  //await execute("FloozRouter", { from: deployer, log: true }, "transferOwnership", contractOwner);
 };
 
 export default func;
