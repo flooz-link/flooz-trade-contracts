@@ -480,11 +480,11 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
             }
             // executes trade and sends toToken to defined recipient
             (bool success, bytes memory _data) = address(oneInch).call{value: msg.value}(data);
-            if (success) {
+            if (!success) {
+                revert();
+            } else {
                 (uint256 returnAmount, ) = abi.decode(_data, (uint256, uint256));
                 require(returnAmount >= minOut, "FloozRouter: Insufficient Output Amount");
-            } else {
-                revert();
             }
         } else {
             // Swap from ETH
@@ -496,11 +496,11 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                     false
                 );
                 (bool success, bytes memory _data) = address(oneInch).call{value: swapAmount}(data);
-                if (success) {
+                if (!success) {
+                    revert();
+                } else {
                     (uint256 returnAmount, ) = abi.decode(_data, (uint256, uint256));
                     require(returnAmount >= minOut, "FloozRouter: Insufficient Output Amount");
-                } else {
-                    revert();
                 }
                 _withdrawFeesAndRewards(address(0), toToken, referee, feeAmount, referralReward);
                 // Swap from token
@@ -514,11 +514,11 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                 IERC20(fromToken).transferFrom(msg.sender, address(this), swapAmount);
                 IERC20(fromToken).approve(oneInch, swapAmount);
                 (bool success, bytes memory _data) = address(oneInch).call(data);
-                if (success) {
+                if (!success) {
+                    revert();
+                } else {
                     (uint256 returnAmount, ) = abi.decode(_data, (uint256, uint256));
                     require(returnAmount >= minOut, "FloozRouter: Insufficient Output Amount");
-                } else {
-                    revert();
                 }
                 _withdrawFeesAndRewards(fromToken, toToken, referee, feeAmount, referralReward);
             }
@@ -564,6 +564,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                 }
             }
         } else {
+            // Swap from ETH
             if (msg.value > 0 && fromToken == address(0)) {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
                     fee,
@@ -576,6 +577,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                 require(IERC20(toToken).balanceOf(address(this)) >= minOut, "FloozRouter: Insufficient Output Amount");
                 TransferHelper.safeTransfer(toToken, msg.sender, IERC20(toToken).balanceOf(address(this)));
                 _withdrawFeesAndRewards(address(0), toToken, referee, feeAmount, referralReward);
+                // Swap from Token
             } else {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
                     fee,
