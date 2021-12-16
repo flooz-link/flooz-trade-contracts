@@ -32,7 +32,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     contract: "ReferralRegistry",
   });
 
-  
   // deploy the router
   const floozRouter = await deploy("MultichainRouter", {
     from: deployer,
@@ -40,7 +39,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     contract: "MultichainRouter",
     args: [WETH, swapFee, referralReward, feeReceiver.address, referralRegistry.address, zeroEx, oneInch],
   });
-        
+
   // give the FloozRouter permission to create new anchors
   await execute("ReferralRegistry", { from: deployer, log: true }, "updateAnchorManager", floozRouter.address, true);
 
