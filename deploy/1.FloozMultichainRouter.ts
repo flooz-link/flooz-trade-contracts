@@ -33,10 +33,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   });
 
   // deploy the router
-  const floozRouter = await deploy("MultichainRouter", {
+  const floozRouter = await deploy("FloozMultichainRouter", {
     from: deployer,
     log: true,
-    contract: "MultichainRouter",
+    contract: "FloozMultichainRouter",
     args: [WETH, swapFee, referralReward, feeReceiver.address, referralRegistry.address, zeroEx, oneInch],
   });
 
