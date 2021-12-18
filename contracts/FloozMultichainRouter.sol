@@ -31,6 +31,16 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         bool fee;
     }
 
+    struct ExternalSwapData {
+        bytes data;
+        address fromToken;
+        address toToken;
+        uint256 amountFrom;
+        address referee;
+        uint256 minOut;
+        bool fee;
+    }
+
     // Denominator of fee
     uint256 public constant FEE_DENOMINATOR = 10000;
 
@@ -463,145 +473,147 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    function executeOneInchSwap(
-        bytes calldata data,
-        address fromToken,
-        address toToken,
-        uint256 amountFrom,
-        address referee,
-        uint256 minOut,
-        bool fee
-    ) external payable nonReentrant whenNotPaused isValidReferee(referee) {
-        if (!fee) {
+    /// @dev Executes a swap on 1inch
+    /// @param swapData encoded swap data
+    function executeOneInchSwap(ExternalSwapData calldata swapData)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        isValidReferee(swapData.referee)
+    {
+        address referee = _getReferee(swapData.referee);
+        uint256 balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
+        if (!swapData.fee) {
             // execute without fees
-            if (fromToken != address(0)) {
-                IERC20(fromToken).transferFrom(msg.sender, address(this), amountFrom);
-                IERC20(fromToken).approve(oneInch, amountFrom);
+            if (swapData.fromToken != address(0)) {
+                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapData.amountFrom);
+                IERC20(swapData.fromToken).approve(oneInch, swapData.amountFrom);
             }
             // executes trade and sends toToken to defined recipient
-            (bool success, bytes memory _data) = address(oneInch).call{value: msg.value}(data);
-            if (!success) {
-                revert();
-            } else {
-                (uint256 returnAmount, ) = abi.decode(_data, (uint256, uint256));
-                require(returnAmount >= minOut, "FloozRouter: Insufficient Output Amount");
-            }
+            (bool success, bytes memory _data) = address(oneInch).call{value: msg.value}(swapData.data);
+            require(success, "FloozRouter: REVERTED");
         } else {
             // Swap from ETH
-            if (msg.value > 0 && fromToken == address(0)) {
+            if (msg.value > 0 && swapData.fromToken == address(0)) {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-                    fee,
+                    swapData.fee,
                     msg.value,
-                    referee,
+                    swapData.referee,
                     false
                 );
-                (bool success, bytes memory _data) = address(oneInch).call{value: swapAmount}(data);
-                if (!success) {
-                    revert();
-                } else {
-                    (uint256 returnAmount, ) = abi.decode(_data, (uint256, uint256));
-                    require(returnAmount >= minOut, "FloozRouter: Insufficient Output Amount");
-                }
-                _withdrawFeesAndRewards(address(0), toToken, referee, feeAmount, referralReward);
+                (bool success, bytes memory _data) = address(oneInch).call{value: swapAmount}(swapData.data);
+                require(success, "FloozRouter: REVERTED");
+                _withdrawFeesAndRewards(address(0), swapData.toToken, swapData.referee, feeAmount, referralReward);
                 // Swap from token
             } else {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-                    fee,
-                    amountFrom,
-                    referee,
+                    swapData.fee,
+                    swapData.amountFrom,
+                    swapData.referee,
                     false
                 );
-                IERC20(fromToken).transferFrom(msg.sender, address(this), swapAmount);
-                IERC20(fromToken).approve(oneInch, swapAmount);
-                (bool success, bytes memory _data) = address(oneInch).call(data);
-                if (!success) {
-                    revert();
-                } else {
-                    (uint256 returnAmount, ) = abi.decode(_data, (uint256, uint256));
-                    require(returnAmount >= minOut, "FloozRouter: Insufficient Output Amount");
-                }
-                _withdrawFeesAndRewards(fromToken, toToken, referee, feeAmount, referralReward);
+                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapAmount);
+                IERC20(swapData.fromToken).approve(oneInch, swapAmount);
+                (bool success, bytes memory _data) = address(oneInch).call(swapData.data);
+                require(success, "FloozRouter: REVERTED");
+                _withdrawFeesAndRewards(
+                    swapData.fromToken,
+                    swapData.toToken,
+                    swapData.referee,
+                    feeAmount,
+                    referralReward
+                );
             }
+            uint256 balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
+            require(balanceAfter.sub(balanceBefore) >= swapData.minOut, "FloozRouter: INSUFFICIENT_OUTPUT");
         }
     }
 
-    /// @dev Executes a swap on 0x API
-    /// @param data calldata expected by data field on 0x API (https://0x.org/docs/api#response-1)
-    /// @param fromToken the address of currency to sell - 0x address for ETH
-    /// @param toToken the address of currency to buy - 0x address for ETH
-    /// @param referee address of referee for msg.sender, 0x adress if none
-    /// @param fee boolean if fee should be applied or not
-    function executeZeroExSwap(
-        bytes calldata data,
-        address fromToken,
-        address toToken,
-        uint256 amountFrom,
-        address referee,
-        uint256 minOut,
-        bool fee
-    ) external payable nonReentrant whenNotPaused isValidReferee(referee) {
-        referee = _getReferee(referee);
-        if (!fee) {
-            if (msg.value > 0 && fromToken == address(0)) {
-                (bool success, ) = zeroEx.call{value: msg.value}(data);
+    /// @dev Executes a swap on 0x
+    /// @param swapData encoded swap data
+    function executeZeroExSwap(ExternalSwapData calldata swapData)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        isValidReferee(swapData.referee)
+    {
+        address referee = _getReferee(swapData.referee);
+        uint256 balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
+        if (!swapData.fee) {
+            if (msg.value > 0 && swapData.fromToken == address(0)) {
+                (bool success, ) = zeroEx.call{value: msg.value}(swapData.data);
                 require(success, "FloozRouter: REVERTED");
-                require(IERC20(toToken).balanceOf(address(this)) >= minOut, "FloozRouter: Insufficient Output Amount");
-                TransferHelper.safeTransfer(toToken, msg.sender, IERC20(toToken).balanceOf(address(this)));
+                TransferHelper.safeTransfer(
+                    swapData.toToken,
+                    msg.sender,
+                    IERC20(swapData.toToken).balanceOf(address(this))
+                );
             } else {
-                IERC20(fromToken).transferFrom(msg.sender, address(this), amountFrom);
-                IERC20(fromToken).approve(zeroEx, amountFrom);
-                (bool success, ) = zeroEx.call(data);
+                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapData.amountFrom);
+                IERC20(swapData.fromToken).approve(zeroEx, swapData.amountFrom);
+                (bool success, ) = zeroEx.call(swapData.data);
                 require(success, "FloozRouter: REVERTED");
-                if (toToken == address(0)) {
-                    require(address(this).balance >= minOut, "FloozRouter: Insufficient Output Amount");
+                if (swapData.toToken == address(0)) {
                     TransferHelper.safeTransferETH(msg.sender, address(this).balance);
                 } else {
-                    require(
-                        IERC20(toToken).balanceOf(address(this)) >= minOut,
-                        "FloozRouter: Insufficient Output Amount"
+                    TransferHelper.safeTransfer(
+                        swapData.toToken,
+                        msg.sender,
+                        IERC20(swapData.toToken).balanceOf(address(this))
                     );
-                    TransferHelper.safeTransfer(toToken, msg.sender, IERC20(toToken).balanceOf(address(this)));
                 }
             }
         } else {
             // Swap from ETH
-            if (msg.value > 0 && fromToken == address(0)) {
+            if (msg.value > 0 && swapData.fromToken == address(0)) {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-                    fee,
+                    swapData.fee,
                     msg.value,
-                    referee,
+                    swapData.referee,
                     false
                 );
-                (bool success, ) = zeroEx.call{value: swapAmount}(data);
+                (bool success, ) = zeroEx.call{value: swapAmount}(swapData.data);
                 require(success, "FloozRouter: REVERTED");
-                require(IERC20(toToken).balanceOf(address(this)) >= minOut, "FloozRouter: Insufficient Output Amount");
-                TransferHelper.safeTransfer(toToken, msg.sender, IERC20(toToken).balanceOf(address(this)));
-                _withdrawFeesAndRewards(address(0), toToken, referee, feeAmount, referralReward);
+                TransferHelper.safeTransfer(
+                    swapData.toToken,
+                    msg.sender,
+                    IERC20(swapData.toToken).balanceOf(address(this))
+                );
+                _withdrawFeesAndRewards(address(0), swapData.toToken, swapData.referee, feeAmount, referralReward);
                 // Swap from Token
             } else {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-                    fee,
-                    amountFrom,
-                    referee,
+                    swapData.fee,
+                    swapData.amountFrom,
+                    swapData.referee,
                     false
                 );
-                IERC20(fromToken).transferFrom(msg.sender, address(this), swapAmount);
-                IERC20(fromToken).approve(zeroEx, swapAmount);
-                (bool success, ) = zeroEx.call(data);
+                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapAmount);
+                IERC20(swapData.fromToken).approve(zeroEx, swapAmount);
+                (bool success, ) = zeroEx.call(swapData.data);
                 require(success, "FloozRouter: REVERTED");
-                if (toToken == address(0)) {
-                    require(address(this).balance >= minOut, "FloozRouter: Insufficient Output Amount");
+                if (swapData.toToken == address(0)) {
                     TransferHelper.safeTransferETH(msg.sender, address(this).balance);
                 } else {
-                    require(
-                        IERC20(toToken).balanceOf(address(this)) >= minOut,
-                        "FloozRouter: Insufficient Output Amount"
+                    TransferHelper.safeTransfer(
+                        swapData.toToken,
+                        msg.sender,
+                        IERC20(swapData.toToken).balanceOf(address(this))
                     );
-                    TransferHelper.safeTransfer(toToken, msg.sender, IERC20(toToken).balanceOf(address(this)));
                 }
-                _withdrawFeesAndRewards(fromToken, toToken, referee, feeAmount, referralReward);
+                _withdrawFeesAndRewards(
+                    swapData.fromToken,
+                    swapData.toToken,
+                    swapData.referee,
+                    feeAmount,
+                    referralReward
+                );
             }
         }
+        uint256 balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
+        require(balanceAfter.sub(balanceBefore) >= swapData.minOut, "FloozRouter: INSUFFICIENT_OUTPUT");
     }
 
     /// @dev calculates swap, fee & reward amounts
