@@ -429,7 +429,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    /*
     /// @dev Executes a swap on 0x API
     /// @param data calldata expected by data field on 0x API (https://0x.org/docs/api#response-1)
     /// @param tokenOut the address of currency to sell – 0x address for ETH
@@ -476,50 +475,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
                 );
                 _withdrawFeesAndRewards(tokenOut, tokenIn, referee, feeAmount, referralReward);
             }
-        }
-    }
-    */
-
-    function execute1InchSwap(
-        bytes calldata data,
-        address fromToken,
-        address toToken,
-        uint256 amountFrom,
-        address referee,
-        uint256 minOut
-    ) external payable nonReentrant whenNotPaused isValidReferee(referee) {
-        if (fromToken != address(0)) {
-            IERC20(fromToken).transferFrom(msg.sender, address(this), amountFrom);
-            IERC20(fromToken).approve(oneInch, amountFrom);
-        }
-        (bool success, bytes memory _data) = address(oneInch).call{value: msg.value}(data);
-        if (success) {
-            (uint256 returnAmount, ) = abi.decode(_data, (uint256, uint256));
-            require(returnAmount >= minOut, "FloozRouter: Insufficient Output Amount");
-        } else {
-            revert();
-        }
-    }
-
-    function executeZeroExSwap(
-        bytes calldata data,
-        address fromToken,
-        address toToken,
-        uint256 amountFrom,
-        address referee
-    ) external payable nonReentrant whenNotPaused isValidReferee(referee) {
-        if (fromToken != address(0)) {
-            IERC20(fromToken).transferFrom(msg.sender, address(this), amountFrom);
-            IERC20(fromToken).approve(zeroEx, amountFrom);
-        }
-        (bool success, ) = address(zeroEx).call{value: msg.value}(data);
-        require(success, "FloozRouter: REVERTED");
-
-        if (fromToken != address(0)) {
-            uint256 balance = IERC20(toToken).balanceOf(address(this));
-            IERC20(toToken).transfer(msg.sender, balance);
-        } else {
-            msg.sender.transfer(address(this).balance);
         }
     }
 
@@ -585,7 +540,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         saveYourAssetsToken.balanceOf(user) >= balanceThreshold ? 0 : swapFee;
     }
 
-    /*
     /// @dev lets the admin update the swapFee nominator
     function updateSwapFee(uint16 newSwapFee) external onlyOwner {
         swapFee = newSwapFee;
@@ -653,7 +607,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     ) external onlyOwner {
         TransferHelper.safeTransfer(token, to, amount);
     }
-    */
 
     /// @dev distributes fees & referral rewards to users
     function _withdrawFeesAndRewards(

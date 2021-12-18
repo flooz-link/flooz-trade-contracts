@@ -491,7 +491,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                 IERC20(swapData.fromToken).approve(oneInch, swapData.amountFrom);
             }
             // executes trade and sends toToken to defined recipient
-            (bool success, bytes memory _data) = address(oneInch).call{value: msg.value}(swapData.data);
+            (bool success,) = address(oneInch).call{value: msg.value}(swapData.data);
             require(success, "FloozRouter: REVERTED");
         } else {
             // Swap from ETH
@@ -499,28 +499,28 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
                     swapData.fee,
                     msg.value,
-                    swapData.referee,
+                    referee,
                     false
                 );
-                (bool success, bytes memory _data) = address(oneInch).call{value: swapAmount}(swapData.data);
+                (bool success,) = address(oneInch).call{value: swapAmount}(swapData.data);
                 require(success, "FloozRouter: REVERTED");
-                _withdrawFeesAndRewards(address(0), swapData.toToken, swapData.referee, feeAmount, referralReward);
+                _withdrawFeesAndRewards(address(0), swapData.toToken, referee, feeAmount, referralReward);
                 // Swap from token
             } else {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
                     swapData.fee,
                     swapData.amountFrom,
-                    swapData.referee,
+                    referee,
                     false
                 );
                 IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapAmount);
                 IERC20(swapData.fromToken).approve(oneInch, swapAmount);
-                (bool success, bytes memory _data) = address(oneInch).call(swapData.data);
+                (bool success,) = address(oneInch).call(swapData.data);
                 require(success, "FloozRouter: REVERTED");
                 _withdrawFeesAndRewards(
                     swapData.fromToken,
                     swapData.toToken,
-                    swapData.referee,
+                    referee,
                     feeAmount,
                     referralReward
                 );
@@ -571,7 +571,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
                     swapData.fee,
                     msg.value,
-                    swapData.referee,
+                    referee,
                     false
                 );
                 (bool success, ) = zeroEx.call{value: swapAmount}(swapData.data);
@@ -581,13 +581,13 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                     msg.sender,
                     IERC20(swapData.toToken).balanceOf(address(this))
                 );
-                _withdrawFeesAndRewards(address(0), swapData.toToken, swapData.referee, feeAmount, referralReward);
+                _withdrawFeesAndRewards(address(0), swapData.toToken, referee, feeAmount, referralReward);
                 // Swap from Token
             } else {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
                     swapData.fee,
                     swapData.amountFrom,
-                    swapData.referee,
+                    referee,
                     false
                 );
                 IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapAmount);
@@ -606,7 +606,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                 _withdrawFeesAndRewards(
                     swapData.fromToken,
                     swapData.toToken,
-                    swapData.referee,
+                    referee,
                     feeAmount,
                     referralReward
                 );
