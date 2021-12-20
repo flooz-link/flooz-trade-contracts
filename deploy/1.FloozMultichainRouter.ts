@@ -23,7 +23,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   } else if (network.name == "polygon") {
     MULTISIG = "0xacA1eCf2F6b0aff85D1B58231cDE35b56098F2c2";
   } else if (network.name == "avalanche") {
-    MULTISIG = "0xeF5a1c768eE7B51ec4B4Af3C5804349e70759E14";
+    MULTISIG = "0x8189E1d1846227bcd500613d683652c46B28b7bB";
   }
 
   // deploy the fee receiver
@@ -54,8 +54,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   // transfer Ownerships
   //await execute("FloozRouter", { from: deployer, log: true }, "transferOwnership", MULTISIG);
-  //await execute("FeeReceiverMultichain", { from: deployer, log: true }, "transferOwnership", MULTISIG);
-  //await execute("ReferralRegistry", { from: deployer, log: true }, "transferOwnership", MULTISIG);
+  await execute("FeeReceiverMultichain", { from: deployer, log: true }, "transferOwnership", MULTISIG);
+  await execute("ReferralRegistry", { from: deployer, log: true }, "transferOwnership", MULTISIG);
 };
 
 export default func;
