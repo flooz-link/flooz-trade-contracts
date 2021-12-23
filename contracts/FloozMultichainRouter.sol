@@ -1,7 +1,6 @@
 pragma solidity =0.6.6;
 pragma experimental ABIEncoderV2;
 
-import "@0x/contracts-utils/contracts/src/v06/LibBytesV06.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -15,7 +14,6 @@ import "./interfaces/IZerox.sol";
 
 contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
     using SafeMath for uint256;
-    using LibBytesV06 for bytes;
 
     event SwapFeeUpdated(uint16 swapFee);
     event ReferralRegistryUpdated(address referralRegistry);
@@ -33,6 +31,16 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         bool fee;
     }
 
+    struct ExternalSwapData {
+        bytes data;
+        address fromToken;
+        address toToken;
+        uint256 amountFrom;
+        address referee;
+        uint256 minOut;
+        bool fee;
+    }
+
     // Denominator of fee
     uint256 public constant FEE_DENOMINATOR = 10000;
 
@@ -44,6 +52,9 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
 
     // address of zeroEx proxy contract to forward swaps
     address payable public immutable zeroEx;
+
+    // address of 1inch contract to forward swaps
+    address payable public immutable oneInch;
 
     // address of referral registry that stores referral anchors
     IReferralRegistry public referralRegistry;
@@ -79,7 +90,8 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         uint16 _referralRewardRate,
         address payable _feeReceiver,
         IReferralRegistry _referralRegistry,
-        address payable _zeroEx
+        address payable _zeroEx,
+        address payable _oneInch
     ) public {
         WETH = _WETH;
         swapFee = _swapFee;
@@ -87,6 +99,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         feeReceiver = _feeReceiver;
         referralRegistry = _referralRegistry;
         zeroEx = _zeroEx;
+        oneInch = _oneInch;
         referralsActivated = true;
     }
 
@@ -460,66 +473,135 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    /// @dev Fallback function to execute swaps directly on 0x for users that don't pay a fee
-    /// @dev params as of API documentation from 0x API (https://0x.org/docs/api#response-1)
-    fallback() external payable {
-        bytes4 selector = msg.data.readBytes4(0);
-        address impl = IZerox(zeroEx).getFunctionImplementation(selector);
-        require(impl != address(0), "FloozRouter: NO_IMPLEMENTATION");
-
-        (bool success, ) = impl.delegatecall(msg.data);
-        require(success, "FloozRouter: REVERTED");
-    }
-
-    /// @dev Executes a swap on 0x API
-    /// @param data calldata expected by data field on 0x API (https://0x.org/docs/api#response-1)
-    /// @param tokenOut the address of currency to sell - 0x address for ETH
-    /// @param tokenIn the address of currency to buy - 0x address for ETH
-    /// @param referee address of referee for msg.sender, 0x adress if none
-    /// @param fee boolean if fee should be applied or not
-    function executeZeroExSwap(
-        bytes calldata data,
-        address tokenOut,
-        address tokenIn,
-        address referee,
-        bool fee
-    ) external payable nonReentrant whenNotPaused isValidReferee(referee) {
-        referee = _getReferee(referee);
-        bytes4 selector = data.readBytes4(0);
-        address impl = IZerox(zeroEx).getFunctionImplementation(selector);
-        require(impl != address(0), "FloozRouter: NO_IMPLEMENTATION");
-
-        if (!fee) {
-            (bool success, ) = impl.delegatecall(data);
+    /// @dev Executes a swap on 1inch
+    /// @param swapData encoded swap data
+    function executeOneInchSwap(ExternalSwapData calldata swapData)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        isValidReferee(swapData.referee)
+    {
+        address referee = _getReferee(swapData.referee);
+        uint256 balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
+        if (!swapData.fee) {
+            // execute without fees
+            if (swapData.fromToken != address(0)) {
+                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapData.amountFrom);
+                IERC20(swapData.fromToken).approve(oneInch, swapData.amountFrom);
+            }
+            // executes trade and sends toToken to defined recipient
+            (bool success, ) = address(oneInch).call{value: msg.value}(swapData.data);
             require(success, "FloozRouter: REVERTED");
         } else {
-            // if ETH in execute trade as router & distribute funds & fees
-            if (msg.value > 0) {
+            // Swap from ETH
+            if (msg.value > 0 && swapData.fromToken == address(0)) {
                 (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-                    fee,
+                    swapData.fee,
                     msg.value,
                     referee,
                     false
                 );
-                (bool success, ) = impl.call{value: swapAmount}(data);
+                (bool success, ) = address(oneInch).call{value: swapAmount}(swapData.data);
                 require(success, "FloozRouter: REVERTED");
-                TransferHelper.safeTransfer(tokenIn, msg.sender, IERC20(tokenIn).balanceOf(address(this)));
-                _withdrawFeesAndRewards(address(0), tokenIn, referee, feeAmount, referralReward);
+                _withdrawFeesAndRewards(address(0), swapData.toToken, referee, feeAmount, referralReward);
+                // Swap from token
             } else {
-                uint256 balanceBefore = IERC20(tokenOut).balanceOf(msg.sender);
-                (bool success, ) = impl.delegatecall(data);
-                require(success, "FloozRouter: REVERTED");
-                uint256 balanceAfter = IERC20(tokenOut).balanceOf(msg.sender);
-                require(balanceBefore > balanceAfter, "INVALID_TOKEN");
-                (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
-                    fee,
-                    balanceBefore.sub(balanceAfter),
+                (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+                    swapData.fee,
+                    swapData.amountFrom,
                     referee,
-                    true
+                    false
                 );
-                _withdrawFeesAndRewards(tokenOut, tokenIn, referee, feeAmount, referralReward);
+                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapAmount);
+                IERC20(swapData.fromToken).approve(oneInch, swapAmount);
+                (bool success, ) = address(oneInch).call(swapData.data);
+                require(success, "FloozRouter: REVERTED");
+                _withdrawFeesAndRewards(swapData.fromToken, swapData.toToken, referee, feeAmount, referralReward);
+            }
+            uint256 balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
+            require(balanceAfter.sub(balanceBefore) >= swapData.minOut, "FloozRouter: INSUFFICIENT_OUTPUT");
+        }
+    }
+
+    /// @dev Executes a swap on 0x
+    /// @param swapData encoded swap data
+    function executeZeroExSwap(ExternalSwapData calldata swapData)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        isValidReferee(swapData.referee)
+    {
+        address referee = _getReferee(swapData.referee);
+        uint256 balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
+        if (!swapData.fee) {
+            if (msg.value > 0 && swapData.fromToken == address(0)) {
+                (bool success, ) = zeroEx.call{value: msg.value}(swapData.data);
+                require(success, "FloozRouter: REVERTED");
+                TransferHelper.safeTransfer(
+                    swapData.toToken,
+                    msg.sender,
+                    IERC20(swapData.toToken).balanceOf(address(this))
+                );
+            } else {
+                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapData.amountFrom);
+                IERC20(swapData.fromToken).approve(zeroEx, swapData.amountFrom);
+                (bool success, ) = zeroEx.call(swapData.data);
+                require(success, "FloozRouter: REVERTED");
+                if (swapData.toToken == address(0)) {
+                    TransferHelper.safeTransferETH(msg.sender, address(this).balance);
+                } else {
+                    TransferHelper.safeTransfer(
+                        swapData.toToken,
+                        msg.sender,
+                        IERC20(swapData.toToken).balanceOf(address(this))
+                    );
+                }
+            }
+        } else {
+            // Swap from ETH
+            if (msg.value > 0 && swapData.fromToken == address(0)) {
+                (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+                    swapData.fee,
+                    msg.value,
+                    referee,
+                    false
+                );
+                (bool success, ) = zeroEx.call{value: swapAmount}(swapData.data);
+                require(success, "FloozRouter: REVERTED");
+                TransferHelper.safeTransfer(
+                    swapData.toToken,
+                    msg.sender,
+                    IERC20(swapData.toToken).balanceOf(address(this))
+                );
+                _withdrawFeesAndRewards(address(0), swapData.toToken, referee, feeAmount, referralReward);
+                // Swap from Token
+            } else {
+                (uint256 swapAmount, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(
+                    swapData.fee,
+                    swapData.amountFrom,
+                    referee,
+                    false
+                );
+                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapAmount);
+                IERC20(swapData.fromToken).approve(zeroEx, swapAmount);
+                (bool success, ) = zeroEx.call(swapData.data);
+                require(success, "FloozRouter: REVERTED");
+                if (swapData.toToken == address(0)) {
+                    TransferHelper.safeTransferETH(msg.sender, address(this).balance);
+                } else {
+                    TransferHelper.safeTransfer(
+                        swapData.toToken,
+                        msg.sender,
+                        IERC20(swapData.toToken).balanceOf(address(this))
+                    );
+                }
+                _withdrawFeesAndRewards(swapData.fromToken, swapData.toToken, referee, feeAmount, referralReward);
             }
         }
+        uint256 balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
+        require(balanceAfter.sub(balanceBefore) >= swapData.minOut, "FloozRouter: INSUFFICIENT_OUTPUT");
     }
 
     /// @dev calculates swap, fee & reward amounts
@@ -540,6 +622,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
             uint256 referralReward
         )
     {
+        uint16 swapFee = swapFee;
         // no fees for users above threshold
         if (!fee) {
             swapAmount = amount;

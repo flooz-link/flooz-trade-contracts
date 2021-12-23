@@ -38,6 +38,9 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     // address of zeroEx proxy contract to forward swaps
     address payable public immutable zeroEx;
 
+    // address of 1inch contract to forward swaps
+    address payable public immutable oneInch;
+
     // address of referral registry that stores referral anchors
     IReferralRegistry public referralRegistry;
 
@@ -74,6 +77,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     /// @param _saveYourAssetsToken address of SYA token
     /// @param _referralRegistry address of referral registry that stores referral anchors
     /// @param _zeroEx address of zeroX proxy contract to forward swaps
+    /// @param _oneInch address of 1inch contract to forward swaps
     constructor(
         address _WETH,
         uint16 _swapFee,
@@ -82,7 +86,8 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         uint256 _balanceThreshold,
         IERC20 _saveYourAssetsToken,
         IReferralRegistry _referralRegistry,
-        address payable _zeroEx
+        address payable _zeroEx,
+        address payable _oneInch
     ) public {
         WETH = _WETH;
         swapFee = _swapFee;
@@ -92,6 +97,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         balanceThreshold = _balanceThreshold;
         referralRegistry = _referralRegistry;
         zeroEx = _zeroEx;
+        oneInch = _oneInch;
         referralsActivated = true;
     }
 
@@ -421,18 +427,6 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
             address to = i < path.length - 2 ? _pairFor(fork, output, path[i + 2]) : _to;
             pair.swap(amount0Out, amount1Out, to, new bytes(0));
         }
-    }
-
-    /// @dev Fallback function to execute swaps directly on 0x for users that don't pay a fee
-    /// @dev params as of API documentation from 0x API (https://0x.org/docs/api#response-1)
-    fallback() external payable {
-        require(userAboveBalanceThreshold(msg.sender), "FloozRouter: FORBIDDEN");
-        bytes4 selector = msg.data.readBytes4(0);
-        address impl = IZerox(zeroEx).getFunctionImplementation(selector);
-        require(impl != address(0), "FloozRouter: NO_IMPLEMENTATION");
-
-        (bool success, ) = impl.delegatecall(msg.data);
-        require(success, "FloozRouter: REVERTED");
     }
 
     /// @dev Executes a swap on 0x API

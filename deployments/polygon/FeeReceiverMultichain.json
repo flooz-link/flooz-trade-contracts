@@ -1,0 +1,238 @@
+{
+  "address": "0x2be4436c7e4E405A89BF78CAa9aa41F7162f827A",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_WETH",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "WETH",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "unwrapWETH",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawERC20Token",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address payable",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawETH",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
+    }
+  ],
+  "transactionHash": "0xb179f2ab86a4235436958ba17945b9d42edef8d949ef8836a38d0c3f1a0d0035",
+  "receipt": {
+    "to": null,
+    "from": "0xAa2500d99AFB556237F870c1fA3Cc577a67c7272",
+    "contractAddress": "0x2be4436c7e4E405A89BF78CAa9aa41F7162f827A",
+    "transactionIndex": 50,
+    "gasUsed": "466931",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000800000000000400000000000200400000000000000000000008000000000000000000000000000000000000000000000000000040000800001000000400000000100000000000000000000020000000000000000000800000000000000000080000000000000400000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000204000000000000000000001004000000000000000000000000000100000000020000000000000000000000000000000000000000000800000000000000000100000",
+    "blockHash": "0x1c37f6b3b02c9192044487b301118efab1fbdcaad07c05766311d7c8189dd9a9",
+    "transactionHash": "0xb179f2ab86a4235436958ba17945b9d42edef8d949ef8836a38d0c3f1a0d0035",
+    "logs": [
+      {
+        "transactionIndex": 50,
+        "blockNumber": 22754292,
+        "transactionHash": "0xb179f2ab86a4235436958ba17945b9d42edef8d949ef8836a38d0c3f1a0d0035",
+        "address": "0x2be4436c7e4E405A89BF78CAa9aa41F7162f827A",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000aa2500d99afb556237f870c1fa3cc577a67c7272"
+        ],
+        "data": "0x",
+        "logIndex": 242,
+        "blockHash": "0x1c37f6b3b02c9192044487b301118efab1fbdcaad07c05766311d7c8189dd9a9"
+      },
+      {
+        "transactionIndex": 50,
+        "blockNumber": 22754292,
+        "transactionHash": "0xb179f2ab86a4235436958ba17945b9d42edef8d949ef8836a38d0c3f1a0d0035",
+        "address": "0x0000000000000000000000000000000000001010",
+        "topics": [
+          "0x4dfe1bbbcf077ddc3e01291eea2d5c70c2b422b415d95645b9adcfd678cb1d63",
+          "0x0000000000000000000000000000000000000000000000000000000000001010",
+          "0x000000000000000000000000aa2500d99afb556237f870c1fa3cc577a67c7272",
+          "0x0000000000000000000000007c7379531b2aee82e4ca06d4175d13b9cbeafd49"
+        ],
+        "data": "0x0000000000000000000000000000000000000000000000000031c4235bb04400000000000000000000000000000000000000000000000007f8de8b464ce1d82000000000000000000000000000000000000000000000588cd095b1f48b2bc5e9000000000000000000000000000000000000000000000007f8acc722f131942000000000000000000000000000000000000000000000588cd0c77617e6dc09e9",
+        "logIndex": 243,
+        "blockHash": "0x1c37f6b3b02c9192044487b301118efab1fbdcaad07c05766311d7c8189dd9a9"
+      }
+    ],
+    "blockNumber": 22754292,
+    "cumulativeGasUsed": "7516612",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270"
+  ],
+  "solcInputHash": "240e6f3121f8fa37a06a3a6414afb2c7",
+  "metadata": "{\"compiler\":{\"version\":\"0.6.6+commit.6c089d02\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_WETH\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"WETH\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"unwrapWETH\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"token\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"withdrawERC20Token\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address payable\",\"name\":\"to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"withdrawETH\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}],\"devdoc\":{\"methods\":{\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner.     * NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"},\"unwrapWETH()\":{\"details\":\"converts WETH to ETH\"},\"withdrawERC20Token(address,address,uint256)\":{\"details\":\"lets the owner withdraw any ERC20 Token from the contract\"},\"withdrawETH(address,uint256)\":{\"details\":\"lets the owner withdraw ETH from the contract\"}}},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"contracts/FeeReceiverMultichain.sol\":\"FeeReceiverMultichain\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":100},\"remappings\":[]},\"sources\":{\"@openzeppelin/contracts/access/Ownable.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity >=0.6.0 <0.8.0;\\n\\nimport \\\"../utils/Context.sol\\\";\\n/**\\n * @dev Contract module which provides a basic access control mechanism, where\\n * there is an account (an owner) that can be granted exclusive access to\\n * specific functions.\\n *\\n * By default, the owner account will be the one that deploys the contract. This\\n * can later be changed with {transferOwnership}.\\n *\\n * This module is used through inheritance. It will make available the modifier\\n * `onlyOwner`, which can be applied to your functions to restrict their use to\\n * the owner.\\n */\\nabstract contract Ownable is Context {\\n    address private _owner;\\n\\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\\n\\n    /**\\n     * @dev Initializes the contract setting the deployer as the initial owner.\\n     */\\n    constructor () internal {\\n        address msgSender = _msgSender();\\n        _owner = msgSender;\\n        emit OwnershipTransferred(address(0), msgSender);\\n    }\\n\\n    /**\\n     * @dev Returns the address of the current owner.\\n     */\\n    function owner() public view virtual returns (address) {\\n        return _owner;\\n    }\\n\\n    /**\\n     * @dev Throws if called by any account other than the owner.\\n     */\\n    modifier onlyOwner() {\\n        require(owner() == _msgSender(), \\\"Ownable: caller is not the owner\\\");\\n        _;\\n    }\\n\\n    /**\\n     * @dev Leaves the contract without owner. It will not be possible to call\\n     * `onlyOwner` functions anymore. Can only be called by the current owner.\\n     *\\n     * NOTE: Renouncing ownership will leave the contract without an owner,\\n     * thereby removing any functionality that is only available to the owner.\\n     */\\n    function renounceOwnership() public virtual onlyOwner {\\n        emit OwnershipTransferred(_owner, address(0));\\n        _owner = address(0);\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Can only be called by the current owner.\\n     */\\n    function transferOwnership(address newOwner) public virtual onlyOwner {\\n        require(newOwner != address(0), \\\"Ownable: new owner is the zero address\\\");\\n        emit OwnershipTransferred(_owner, newOwner);\\n        _owner = newOwner;\\n    }\\n}\\n\",\"keccak256\":\"0x15e2d5bd4c28a88548074c54d220e8086f638a71ed07e6b3ba5a70066fcf458d\"},\"@openzeppelin/contracts/token/ERC20/IERC20.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity >=0.6.0 <0.8.0;\\n\\n/**\\n * @dev Interface of the ERC20 standard as defined in the EIP.\\n */\\ninterface IERC20 {\\n    /**\\n     * @dev Returns the amount of tokens in existence.\\n     */\\n    function totalSupply() external view returns (uint256);\\n\\n    /**\\n     * @dev Returns the amount of tokens owned by `account`.\\n     */\\n    function balanceOf(address account) external view returns (uint256);\\n\\n    /**\\n     * @dev Moves `amount` tokens from the caller's account to `recipient`.\\n     *\\n     * Returns a boolean value indicating whether the operation succeeded.\\n     *\\n     * Emits a {Transfer} event.\\n     */\\n    function transfer(address recipient, uint256 amount) external returns (bool);\\n\\n    /**\\n     * @dev Returns the remaining number of tokens that `spender` will be\\n     * allowed to spend on behalf of `owner` through {transferFrom}. This is\\n     * zero by default.\\n     *\\n     * This value changes when {approve} or {transferFrom} are called.\\n     */\\n    function allowance(address owner, address spender) external view returns (uint256);\\n\\n    /**\\n     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.\\n     *\\n     * Returns a boolean value indicating whether the operation succeeded.\\n     *\\n     * IMPORTANT: Beware that changing an allowance with this method brings the risk\\n     * that someone may use both the old and the new allowance by unfortunate\\n     * transaction ordering. One possible solution to mitigate this race\\n     * condition is to first reduce the spender's allowance to 0 and set the\\n     * desired value afterwards:\\n     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729\\n     *\\n     * Emits an {Approval} event.\\n     */\\n    function approve(address spender, uint256 amount) external returns (bool);\\n\\n    /**\\n     * @dev Moves `amount` tokens from `sender` to `recipient` using the\\n     * allowance mechanism. `amount` is then deducted from the caller's\\n     * allowance.\\n     *\\n     * Returns a boolean value indicating whether the operation succeeded.\\n     *\\n     * Emits a {Transfer} event.\\n     */\\n    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);\\n\\n    /**\\n     * @dev Emitted when `value` tokens are moved from one account (`from`) to\\n     * another (`to`).\\n     *\\n     * Note that `value` may be zero.\\n     */\\n    event Transfer(address indexed from, address indexed to, uint256 value);\\n\\n    /**\\n     * @dev Emitted when the allowance of a `spender` for an `owner` is set by\\n     * a call to {approve}. `value` is the new allowance.\\n     */\\n    event Approval(address indexed owner, address indexed spender, uint256 value);\\n}\\n\",\"keccak256\":\"0x5f02220344881ce43204ae4a6281145a67bc52c2bb1290a791857df3d19d78f5\"},\"@openzeppelin/contracts/utils/Context.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity >=0.6.0 <0.8.0;\\n\\n/*\\n * @dev Provides information about the current execution context, including the\\n * sender of the transaction and its data. While these are generally available\\n * via msg.sender and msg.data, they should not be accessed in such a direct\\n * manner, since when dealing with GSN meta-transactions the account sending and\\n * paying for execution may not be the actual sender (as far as an application\\n * is concerned).\\n *\\n * This contract is only required for intermediate, library-like contracts.\\n */\\nabstract contract Context {\\n    function _msgSender() internal view virtual returns (address payable) {\\n        return msg.sender;\\n    }\\n\\n    function _msgData() internal view virtual returns (bytes memory) {\\n        this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691\\n        return msg.data;\\n    }\\n}\\n\",\"keccak256\":\"0x8d3cb350f04ff49cfb10aef08d87f19dcbaecc8027b0bed12f3275cd12f38cf0\"},\"contracts/FeeReceiverMultichain.sol\":{\"content\":\"pragma solidity =0.6.6;\\n\\nimport \\\"@openzeppelin/contracts/token/ERC20/IERC20.sol\\\";\\nimport \\\"@openzeppelin/contracts/access/Ownable.sol\\\";\\nimport \\\"./libraries/TransferHelper.sol\\\";\\nimport \\\"./interfaces/IWETH.sol\\\";\\n\\ncontract FeeReceiverMultichain is Ownable {\\n    address public WETH;\\n\\n    constructor(address _WETH) public {\\n        WETH = _WETH;\\n    }\\n\\n    /// @dev converts WETH to ETH\\n    function unwrapWETH() public {\\n        uint256 balance = IWETH(WETH).balanceOf(address(this));\\n        require(balance > 0, \\\"FeeReceiver: Nothing to unwrap\\\");\\n        IWETH(WETH).withdraw(balance);\\n    }\\n\\n    /// @dev lets the owner withdraw ETH from the contract\\n    function withdrawETH(address payable to, uint256 amount) external onlyOwner {\\n        to.transfer(amount);\\n    }\\n\\n    /// @dev lets the owner withdraw any ERC20 Token from the contract\\n    function withdrawERC20Token(\\n        address token,\\n        address to,\\n        uint256 amount\\n    ) external onlyOwner {\\n        IERC20(token).transfer(to, amount);\\n    }\\n\\n    /// @dev allows to receive ETH on this contract\\n    receive() external payable {}\\n}\\n\",\"keccak256\":\"0x7b267e818a544109450e37addcf469aa547a207d9bc94f90ed523be87a4a20a3\"},\"contracts/interfaces/IWETH.sol\":{\"content\":\"pragma solidity >=0.5.0;\\n\\ninterface IWETH {\\n    function deposit() external payable;\\n\\n    function transfer(address to, uint256 value) external returns (bool);\\n\\n    function withdraw(uint256) external;\\n\\n    function approve(address _spender, uint256 _amount) external returns (bool);\\n\\n    function balanceOf(address _account) external view returns (uint256);\\n}\\n\",\"keccak256\":\"0xd0ade614a95b3c690c2714d314d10a936f97afe97e05efe1b74e632dcce01ca6\"},\"contracts/libraries/TransferHelper.sol\":{\"content\":\"pragma solidity =0.6.6;\\n\\n// helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false\\nlibrary TransferHelper {\\n    function safeApprove(\\n        address token,\\n        address to,\\n        uint256 value\\n    ) internal {\\n        // bytes4(keccak256(bytes('approve(address,uint256)')));\\n        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x095ea7b3, to, value));\\n        require(success && (data.length == 0 || abi.decode(data, (bool))), \\\"TransferHelper: APPROVE_FAILED\\\");\\n    }\\n\\n    function safeTransfer(\\n        address token,\\n        address to,\\n        uint256 value\\n    ) internal {\\n        // bytes4(keccak256(bytes('transfer(address,uint256)')));\\n        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0xa9059cbb, to, value));\\n        require(success && (data.length == 0 || abi.decode(data, (bool))), \\\"TransferHelper: TRANSFER_FAILED\\\");\\n    }\\n\\n    function safeTransferFrom(\\n        address token,\\n        address from,\\n        address to,\\n        uint256 value\\n    ) internal {\\n        // bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));\\n        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x23b872dd, from, to, value));\\n        require(success && (data.length == 0 || abi.decode(data, (bool))), \\\"TransferHelper: TRANSFER_FROM_FAILED\\\");\\n    }\\n\\n    function safeTransferETH(address to, uint256 value) internal {\\n        (bool success, ) = to.call{value: value}(new bytes(0));\\n        require(success, \\\"TransferHelper: ETH_TRANSFER_FAILED\\\");\\n    }\\n}\\n\",\"keccak256\":\"0x05883189981669420f159c9f6c45e7455240a719d710e4bf4b0c74771e354d47\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b506040516107633803806107638339818101604052602081101561003357600080fd5b505160006100486001600160e01b036100b716565b600080546001600160a01b0319166001600160a01b0383169081178255604051929350917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0908290a350600180546001600160a01b0319166001600160a01b03929092169190911790556100bb565b3390565b610699806100ca6000396000f3fe6080604052600436106100645760003560e01c8063385ad0a4146100705780634782f7791461008757806357d1b31b146100c0578063715018a6146101035780638da5cb5b14610118578063ad5c464814610149578063f2fde38b1461015e5761006b565b3661006b57005b600080fd5b34801561007c57600080fd5b50610085610191565b005b34801561009357600080fd5b50610085600480360360408110156100aa57600080fd5b506001600160a01b0381351690602001356102c4565b3480156100cc57600080fd5b50610085600480360360608110156100e357600080fd5b506001600160a01b03813581169160208101359091169060400135610361565b34801561010f57600080fd5b5061008561044d565b34801561012457600080fd5b5061012d6104f9565b604080516001600160a01b039092168252519081900360200190f35b34801561015557600080fd5b5061012d610508565b34801561016a57600080fd5b506100856004803603602081101561018157600080fd5b50356001600160a01b0316610517565b600154604080516370a0823160e01b815230600482015290516000926001600160a01b0316916370a08231916024808301926020929190829003018186803b1580156101dc57600080fd5b505afa1580156101f0573d6000803e3d6000fd5b505050506040513d602081101561020657600080fd5b505190508061025c576040805162461bcd60e51b815260206004820152601e60248201527f46656552656365697665723a204e6f7468696e6720746f20756e777261700000604482015290519081900360640190fd5b60015460408051632e1a7d4d60e01b81526004810184905290516001600160a01b0390921691632e1a7d4d9160248082019260009290919082900301818387803b1580156102a957600080fd5b505af11580156102bd573d6000803e3d6000fd5b5050505050565b6102cc610619565b6001600160a01b03166102dd6104f9565b6001600160a01b031614610326576040805162461bcd60e51b81526020600482018190526024820152600080516020610644833981519152604482015290519081900360640190fd5b6040516001600160a01b0383169082156108fc029083906000818181858888f1935050505015801561035c573d6000803e3d6000fd5b505050565b610369610619565b6001600160a01b031661037a6104f9565b6001600160a01b0316146103c3576040805162461bcd60e51b81526020600482018190526024820152600080516020610644833981519152604482015290519081900360640190fd5b826001600160a01b031663a9059cbb83836040518363ffffffff1660e01b815260040180836001600160a01b03166001600160a01b0316815260200182815260200192505050602060405180830381600087803b15801561042357600080fd5b505af1158015610437573d6000803e3d6000fd5b505050506040513d60208110156102bd57600080fd5b610455610619565b6001600160a01b03166104666104f9565b6001600160a01b0316146104af576040805162461bcd60e51b81526020600482018190526024820152600080516020610644833981519152604482015290519081900360640190fd5b600080546040516001600160a01b03909116907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0908390a3600080546001600160a01b0319169055565b6000546001600160a01b031690565b6001546001600160a01b031681565b61051f610619565b6001600160a01b03166105306104f9565b6001600160a01b031614610579576040805162461bcd60e51b81526020600482018190526024820152600080516020610644833981519152604482015290519081900360640190fd5b6001600160a01b0381166105be5760405162461bcd60e51b815260040180806020018281038252602681526020018061061e6026913960400191505060405180910390fd5b600080546040516001600160a01b03808516939216917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e091a3600080546001600160a01b0319166001600160a01b0392909216919091179055565b339056fe4f776e61626c653a206e6577206f776e657220697320746865207a65726f20616464726573734f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572a2646970667358221220746c7b0c52c073e651fefbfc0370d1c17ec4b6f682a6d6fd1635167e22e5713264736f6c63430006060033",
+  "deployedBytecode": "0x6080604052600436106100645760003560e01c8063385ad0a4146100705780634782f7791461008757806357d1b31b146100c0578063715018a6146101035780638da5cb5b14610118578063ad5c464814610149578063f2fde38b1461015e5761006b565b3661006b57005b600080fd5b34801561007c57600080fd5b50610085610191565b005b34801561009357600080fd5b50610085600480360360408110156100aa57600080fd5b506001600160a01b0381351690602001356102c4565b3480156100cc57600080fd5b50610085600480360360608110156100e357600080fd5b506001600160a01b03813581169160208101359091169060400135610361565b34801561010f57600080fd5b5061008561044d565b34801561012457600080fd5b5061012d6104f9565b604080516001600160a01b039092168252519081900360200190f35b34801561015557600080fd5b5061012d610508565b34801561016a57600080fd5b506100856004803603602081101561018157600080fd5b50356001600160a01b0316610517565b600154604080516370a0823160e01b815230600482015290516000926001600160a01b0316916370a08231916024808301926020929190829003018186803b1580156101dc57600080fd5b505afa1580156101f0573d6000803e3d6000fd5b505050506040513d602081101561020657600080fd5b505190508061025c576040805162461bcd60e51b815260206004820152601e60248201527f46656552656365697665723a204e6f7468696e6720746f20756e777261700000604482015290519081900360640190fd5b60015460408051632e1a7d4d60e01b81526004810184905290516001600160a01b0390921691632e1a7d4d9160248082019260009290919082900301818387803b1580156102a957600080fd5b505af11580156102bd573d6000803e3d6000fd5b5050505050565b6102cc610619565b6001600160a01b03166102dd6104f9565b6001600160a01b031614610326576040805162461bcd60e51b81526020600482018190526024820152600080516020610644833981519152604482015290519081900360640190fd5b6040516001600160a01b0383169082156108fc029083906000818181858888f1935050505015801561035c573d6000803e3d6000fd5b505050565b610369610619565b6001600160a01b031661037a6104f9565b6001600160a01b0316146103c3576040805162461bcd60e51b81526020600482018190526024820152600080516020610644833981519152604482015290519081900360640190fd5b826001600160a01b031663a9059cbb83836040518363ffffffff1660e01b815260040180836001600160a01b03166001600160a01b0316815260200182815260200192505050602060405180830381600087803b15801561042357600080fd5b505af1158015610437573d6000803e3d6000fd5b505050506040513d60208110156102bd57600080fd5b610455610619565b6001600160a01b03166104666104f9565b6001600160a01b0316146104af576040805162461bcd60e51b81526020600482018190526024820152600080516020610644833981519152604482015290519081900360640190fd5b600080546040516001600160a01b03909116907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0908390a3600080546001600160a01b0319169055565b6000546001600160a01b031690565b6001546001600160a01b031681565b61051f610619565b6001600160a01b03166105306104f9565b6001600160a01b031614610579576040805162461bcd60e51b81526020600482018190526024820152600080516020610644833981519152604482015290519081900360640190fd5b6001600160a01b0381166105be5760405162461bcd60e51b815260040180806020018281038252602681526020018061061e6026913960400191505060405180910390fd5b600080546040516001600160a01b03808516939216917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e091a3600080546001600160a01b0319166001600160a01b0392909216919091179055565b339056fe4f776e61626c653a206e6577206f776e657220697320746865207a65726f20616464726573734f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572a2646970667358221220746c7b0c52c073e651fefbfc0370d1c17ec4b6f682a6d6fd1635167e22e5713264736f6c63430006060033",
+  "devdoc": {
+    "methods": {
+      "owner()": {
+        "details": "Returns the address of the current owner."
+      },
+      "renounceOwnership()": {
+        "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner.     * NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner."
+      },
+      "transferOwnership(address)": {
+        "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+      },
+      "unwrapWETH()": {
+        "details": "converts WETH to ETH"
+      },
+      "withdrawERC20Token(address,address,uint256)": {
+        "details": "lets the owner withdraw any ERC20 Token from the contract"
+      },
+      "withdrawETH(address,uint256)": {
+        "details": "lets the owner withdraw ETH from the contract"
+      }
+    }
+  },
+  "userdoc": {
+    "methods": {}
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 592,
+        "contract": "contracts/FeeReceiverMultichain.sol:FeeReceiverMultichain",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      {
+        "astId": 1741,
+        "contract": "contracts/FeeReceiverMultichain.sol:FeeReceiverMultichain",
+        "label": "WETH",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_address"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      }
+    }
+  }
+}
