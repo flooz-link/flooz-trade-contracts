@@ -235,6 +235,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
         address referee
     ) external payable whenNotPaused isValidFork(fork) isValidReferee(referee) returns (uint256[] memory amounts) {
         require(path[0] == WETH, "FloozRouter: INVALID_PATH");
+        address referee = _getReferee(referee);
         amounts = _getAmountsIn(fork, amountOut, path);
         (, uint256 feeAmount, uint256 referralReward) = _calculateFeesAndRewards(amounts[0], referee, true);
         require(amounts[0].add(feeAmount).add(referralReward) <= msg.value, "FloozRouter: EXCESSIVE_INPUT_AMOUNT");

@@ -1,0 +1,118 @@
+Arguments: 
+  /Users/nicoelzer/.nvm/versions/node/v12.22.6/bin/node /usr/local/Cellar/yarn/1.22.15/libexec/bin/yarn.js
+
+PATH: 
+  /Users/nicoelzer/.nvm/versions/node/v12.22.6/bin:/usr/local/opt/openjdk/bin:/usr/local/opt/openjdk/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/opt/openjdk/bin
+
+Yarn version: 
+  1.22.15
+
+Node version: 
+  12.22.6
+
+Platform: 
+  darwin x64
+
+Trace: 
+  Error: https://sya-439396124657.d.codeartifact.eu-central-1.amazonaws.com/npm/flooz-trade-sdk/@0x%2fcontracts-utils: Unauthenticated: request used expired credentials. Please renew your credentials.
+      at Request.params.callback [as _callback] (/usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:67031:18)
+      at Request.self.callback (/usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:140885:22)
+      at Request.emit (events.js:314:20)
+      at Request.<anonymous> (/usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:141857:10)
+      at Request.emit (events.js:314:20)
+      at Gunzip.<anonymous> (/usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:141779:12)
+      at Object.onceWrapper (events.js:420:28)
+      at Gunzip.emit (events.js:326:22)
+      at endReadableNT (_stream_readable.js:1241:12)
+      at processTicksAndRejections (internal/process/task_queues.js:84:21)
+
+npm manifest: 
+  {
+    "name": "flooz-trade-contracts",
+    "version": "0.1.0",
+    "license": "GPL-3.0-or-later",
+    "scripts": {
+      "compile": "hardhat compile",
+      "clean": "hardhat clean",
+      "test": "hardhat test",
+      "lint": "yarn lint:sol && yarn lint:ts",
+      "lint:sol": "solhint 'contracts/**/*.sol'",
+      "lint:ts": "eslint --max-warnings 0",
+      "prettier": "prettier 'contracts/**/*.sol' -w && prettier '**/*.js' -w && prettier '**/*.ts' -w",
+      "coverage": "hardhat compile && hardhat coverage",
+      "flatten": "./tasks/flatten.sh",
+      "deploy:binance-testnet": "hardhat compile && hardhat deploy --network bsc_testnet && npx hardhat etherscan-verify --network bsc_testnet",
+      "deploy:binance-mainnet": "hardhat compile && hardhat deploy --network bsc_mainnet",
+      "deploy:polygon": "hardhat compile && hardhat deploy --network polygon --tags floozMultichainRouter",
+      "deploy:avalanche": "hardhat compile && hardhat deploy --network avalanche --tags floozMultichainRouter",
+      "deploy:ethereum-mainnet": "hardhat compile && hardhat deploy --network eth_mainnet --tags floozMultichainRouter",
+      "verify:binance-mainnet": "hardhat etherscan-verify --network bsc_mainnet",
+      "verify:ethereum-mainnet": "hardhat etherscan-verify --network eth_mainnet",
+      "verify:polygon": "hardhat etherscan-verify --network polygon",
+      "verify:avalanche": "hardhat etherscan-verify --network avalanche",
+      "deploy:localhost": "hardhat compile && hardhat deploy --network localhost",
+      "deploy:hardhat": "hardhat compile && hardhat deploy --network hardhat"
+    },
+    "repository": {
+      "type": "git"
+    },
+    "dependencies": {
+      "@0x/contracts-utils": "^4.7.18",
+      "@float-capital/solidity-coverage": "^0.7.17",
+      "@nomiclabs/hardhat-etherscan": "^2.1.8",
+      "@nomiclabs/hardhat-truffle5": "^2.0.0",
+      "@nomiclabs/hardhat-web3": "^2.0.0",
+      "@pancakeswap-libs/pancake-swap-core": "^0.1.0",
+      "@typechain/ethers-v5": "^6.0.5",
+      "@uniswap/lib": "1.1.1",
+      "@uniswap/v2-core": "git://github.com/pancakeswap/pancake-swap-core.git",
+      "babel-eslint": "^10.1.0",
+      "dotenv": "^8.2.0",
+      "ethers": "^5.0.19",
+      "hardhat-gas-reporter": "^1.0.4",
+      "hardhat-tracer": "^1.0.0-alpha.6",
+      "hardhat-typechain": "^0.3.5",
+      "solc": "0.6.8",
+      "truffle-flattener": "^1.5.0"
+    },
+    "devDependencies": {
+      "@nomiclabs/hardhat-ethers": "^2.0.0",
+      "@nomiclabs/hardhat-waffle": "^2.0.1",
+      "@openzeppelin/contracts": "^3.3.0",
+      "@openzeppelin/test-helpers": "^0.5.9",
+      "@types/chai": "^4.2.14",
+      "@types/debug": "^4.1.5",
+      "@types/mocha": "^8.0.4",
+      "@typescript-eslint/eslint-plugin": "^4.7.0",
+      "@typescript-eslint/parser": "^4.7.0",
+      "chai": "^4.2.0",
+      "debug": "^4.2.0",
+      "eslint": "^7.13.0",
+      "eslint-config-prettier": "^6.15.0",
+      "eslint-plugin-import": "^2.22.1",
+      "eslint-plugin-no-only-tests": "^2.4.0",
+      "eslint-plugin-prettier": "^3.1.4",
+      "ethereum-waffle": "^3.2.0",
+      "hardhat": "^2.0.3",
+      "hardhat-dependency-compiler": "^1.1.1",
+      "hardhat-deploy": "^0.7.5",
+      "hardhat-ethernal": "^0.2.3",
+      "hardhat-log-remover": "^2.0.1",
+      "hardhat-spdx-license-identifier": "^2.0.3",
+      "pancakeswap-peripheral": "^1.1.0-beta.0",
+      "prettier": "^2.1.2",
+      "prettier-plugin-solidity": "^1.0.0-alpha.60",
+      "solhint": "^3.3.2",
+      "solhint-plugin-prettier": "^0.0.5",
+      "solidity-coverage": "^0.7.13",
+      "ts-node": "^9.0.0",
+      "typechain": "^4.0.0",
+      "typescript": "^4.0.5"
+    }
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile

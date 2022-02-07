@@ -482,12 +482,18 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         whenNotPaused
         isValidReferee(swapData.referee)
     {
+        require(swapData.fromToken != swapData.toToken, "FloozRouter: INVALID_TRADE");
         address referee = _getReferee(swapData.referee);
-        uint256 balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
+        uint256 balanceBefore;
+        if(swapData.toToken != address(0)){
+        balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
+        } else {
+            balanceBefore = msg.sender.balance;
+        }
         if (!swapData.fee) {
             // execute without fees
             if (swapData.fromToken != address(0)) {
-                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapData.amountFrom);
+                TransferHelper.safeTransferFrom(swapData.fromToken, msg.sender, address(this), swapData.amountFrom);
                 IERC20(swapData.fromToken).approve(oneInch, swapData.amountFrom);
             }
             // executes trade and sends toToken to defined recipient
@@ -513,13 +519,19 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                     referee,
                     false
                 );
-                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapAmount);
+
+                TransferHelper.safeTransferFrom(swapData.fromToken, msg.sender, address(this), swapAmount);
                 IERC20(swapData.fromToken).approve(oneInch, swapAmount);
                 (bool success, ) = address(oneInch).call(swapData.data);
                 require(success, "FloozRouter: REVERTED");
                 _withdrawFeesAndRewards(swapData.fromToken, swapData.toToken, referee, feeAmount, referralReward);
             }
-            uint256 balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
+            uint256 balanceAfter;
+            if(swapData.toToken != address(0)){
+                balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
+            } else {
+                balanceAfter = msg.sender.balance;
+            }
             require(balanceAfter.sub(balanceBefore) >= swapData.minOut, "FloozRouter: INSUFFICIENT_OUTPUT");
         }
     }
@@ -533,6 +545,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         whenNotPaused
         isValidReferee(swapData.referee)
     {
+        require(swapData.fromToken != swapData.toToken, "FloozRouter: INVALID_TRADE");
         address referee = _getReferee(swapData.referee);
         uint256 balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
         if (!swapData.fee) {
@@ -545,7 +558,7 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                     IERC20(swapData.toToken).balanceOf(address(this))
                 );
             } else {
-                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapData.amountFrom);
+                TransferHelper.safeTransferFrom(swapData.fromToken, msg.sender, address(this), swapData.amountFrom);
                 IERC20(swapData.fromToken).approve(zeroEx, swapData.amountFrom);
                 (bool success, ) = zeroEx.call(swapData.data);
                 require(success, "FloozRouter: REVERTED");
@@ -584,7 +597,8 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                     referee,
                     false
                 );
-                IERC20(swapData.fromToken).transferFrom(msg.sender, address(this), swapAmount);
+
+                TransferHelper.safeTransferFrom(swapData.fromToken, msg.sender, address(this), swapAmount);
                 IERC20(swapData.fromToken).approve(zeroEx, swapAmount);
                 (bool success, ) = zeroEx.call(swapData.data);
                 require(success, "FloozRouter: REVERTED");
