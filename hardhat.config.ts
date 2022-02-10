@@ -55,8 +55,7 @@ module.exports = {
       tags: ["local"],
       url: "http://127.0.0.1:8547",
       accounts: [process.env.PRIVATE_KEY_LOCALHOST],
-      gas: "auto"
-
+      gas: "auto",
     },
   },
   mocha: {

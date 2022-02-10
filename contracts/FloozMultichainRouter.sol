@@ -485,8 +485,8 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         require(swapData.fromToken != swapData.toToken, "FloozRouter: INVALID_TRADE");
         address referee = _getReferee(swapData.referee);
         uint256 balanceBefore;
-        if(swapData.toToken != address(0)){
-        balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
+        if (swapData.toToken != address(0)) {
+            balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
         } else {
             balanceBefore = msg.sender.balance;
         }
@@ -526,14 +526,14 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                 require(success, "FloozRouter: REVERTED");
                 _withdrawFeesAndRewards(swapData.fromToken, swapData.toToken, referee, feeAmount, referralReward);
             }
-            uint256 balanceAfter;
-            if(swapData.toToken != address(0)){
-                balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
-            } else {
-                balanceAfter = msg.sender.balance;
-            }
-            require(balanceAfter.sub(balanceBefore) >= swapData.minOut, "FloozRouter: INSUFFICIENT_OUTPUT");
         }
+        uint256 balanceAfter;
+        if (swapData.toToken != address(0)) {
+            balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
+        } else {
+            balanceAfter = msg.sender.balance;
+        }
+        require(balanceAfter.sub(balanceBefore) >= swapData.minOut, "FloozRouter: INSUFFICIENT_OUTPUT");
     }
 
     /// @dev Executes a swap on 0x
@@ -547,7 +547,12 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
     {
         require(swapData.fromToken != swapData.toToken, "FloozRouter: INVALID_TRADE");
         address referee = _getReferee(swapData.referee);
-        uint256 balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
+        uint256 balanceBefore;
+        if (swapData.toToken != address(0)) {
+            balanceBefore = IERC20(swapData.toToken).balanceOf(msg.sender);
+        } else {
+            balanceBefore = msg.sender.balance;
+        }
         if (!swapData.fee) {
             if (msg.value > 0 && swapData.fromToken == address(0)) {
                 (bool success, ) = zeroEx.call{value: msg.value}(swapData.data);
@@ -614,7 +619,12 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
                 _withdrawFeesAndRewards(swapData.fromToken, swapData.toToken, referee, feeAmount, referralReward);
             }
         }
-        uint256 balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
+        uint256 balanceAfter;
+        if (swapData.toToken != address(0)) {
+            balanceAfter = IERC20(swapData.toToken).balanceOf(msg.sender);
+        } else {
+            balanceAfter = msg.sender.balance;
+        }
         require(balanceAfter.sub(balanceBefore) >= swapData.minOut, "FloozRouter: INSUFFICIENT_OUTPUT");
     }
 
@@ -754,7 +764,11 @@ contract FloozMultichainRouter is Ownable, Pausable, ReentrancyGuard {
         if (tokenReward == address(0)) {
             TransferHelper.safeTransferETH(feeReceiver, feeAmount);
             if (referralReward > 0) {
-                TransferHelper.safeTransferETH(referee, referralReward);
+                bool success = payable(referee).send(referralReward);
+                if (!success) {
+                    IWETH(WETH).deposit{value: referralReward}();
+                    IWETH(WETH).transfer(referee, referralReward);
+                }
                 emit ReferralRewardPaid(msg.sender, referee, tokenOut, tokenReward, referralReward);
             }
         } else {
