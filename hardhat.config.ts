@@ -7,7 +7,7 @@ import "hardhat-dependency-compiler";
 import "hardhat-typechain";
 import "hardhat-tracer";
 import "hardhat-spdx-license-identifier";
-
+import "@openzeppelin/hardhat-upgrades"
 require("dotenv").config();
 
 module.exports = {
@@ -70,6 +70,15 @@ module.exports = {
   },
   solidity: {
     compilers: [
+      {
+        version: "0.8.20",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 100,
+          },
+        },
+      },
       {
         version: "0.8.0",
         settings: {

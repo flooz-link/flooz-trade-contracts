@@ -1,6 +1,5 @@
-pragma solidity =0.6.6;
+pragma solidity =0.8.20;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
 
 interface IPancakePair {
     event Approval(address indexed owner, address indexed spender, uint256 value);
@@ -98,8 +97,6 @@ interface IPancakePair {
 }
 
 library PancakeLibrary {
-    using SafeMath for uint256;
-
     // returns sorted token addresses, used to handle return values from pairs sorted in this order
     function sortTokens(address tokenA, address tokenB) internal pure returns (address token0, address token1) {
         require(tokenA != tokenB, "PancakeLibrary: IDENTICAL_ADDRESSES");
@@ -115,6 +112,6 @@ library PancakeLibrary {
     ) internal pure returns (uint256 amountB) {
         require(amountA > 0, "PancakeLibrary: INSUFFICIENT_AMOUNT");
         require(reserveA > 0 && reserveB > 0, "PancakeLibrary: INSUFFICIENT_LIQUIDITY");
-        amountB = amountA.mul(reserveB) / reserveA;
+        amountB = amountA * reserveB / reserveA;
     }
 }

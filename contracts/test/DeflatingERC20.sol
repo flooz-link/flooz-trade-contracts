@@ -1,6 +1,5 @@
-pragma solidity =0.6.6;
-
-import "../libraries/SafeMath.sol";
+pragma solidity ^0.8.0;
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract DeflatingERC20 {
     using SafeMath for uint256;
@@ -86,7 +85,7 @@ contract DeflatingERC20 {
         address to,
         uint256 value
     ) external returns (bool) {
-        if (allowance[from][msg.sender] != uint256(-1)) {
+        if (allowance[from][msg.sender] != type(uint256).max) {
             allowance[from][msg.sender] = allowance[from][msg.sender].sub(value);
         }
         _transfer(from, to, value);

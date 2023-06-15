@@ -1,6 +1,6 @@
 import { parseEther } from "@ethersproject/units";
 import { Contract, Wallet } from "ethers";
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import { expandTo18Decimals, expandTo9Decimals } from "./utilities";
 
 const overrides = {
@@ -29,6 +29,7 @@ interface V2Fixture {
 
 export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<V2Fixture> {
   const zeroExContract = "0xdef1c0ded9bec7f1a1670819833240f027b25eff";
+  const oneInchContract = "0x1111111254fb6c44bAC0beD2854e76F90643097d";
   let swapFee = 50; // 0.5 %
   let referralFee = 1000; // 10 % of swapFee
   let balanceThreshold = expandTo9Decimals(5000); // 5000 SYA
@@ -93,19 +94,22 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
     balanceThreshold,
     syaToken.address,
     referralRegistry.address,
-    zeroExContract
+    zeroExContract,
+    oneInchContract
   );
   await router.updateFork(factoryV2.address, initHash, true);
 
   // deploy Flooz Multichain router
-  const routerMultichain = await FloozMultichainRouter.deploy(
+  const routerMultichain = await upgrades.deployProxy(FloozMultichainRouter, [
     WETH.address,
     swapFee,
     referralFee,
     feeReceiver.address,
     referralRegistry.address,
-    zeroExContract
-  );
+    zeroExContract,
+    oneInchContract,
+  ]);
+
   await routerMultichain.registerFork(factoryV2.address, initHash);
 
   // grant flooz routers anchor manager privilege to register anchors

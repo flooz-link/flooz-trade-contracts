@@ -1,20 +1,20 @@
-pragma solidity =0.6.6;
+pragma solidity =0.8.20;
 
-import "@0x/contracts-utils/contracts/src/v06/LibBytesV06.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@0x/contracts-utils/contracts/src/v08/LibBytesV08.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 import "./libraries/TransferHelper.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./libraries/PancakeLibrary.sol";
 import "./interfaces/IReferralRegistry.sol";
 import "./interfaces/IWETH.sol";
 import "./interfaces/IZerox.sol";
 
 contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
+    using LibBytesV08 for bytes;
     using SafeMath for uint256;
-    using LibBytesV06 for bytes;
 
     event SwapFeeUpdated(uint16 swapFee);
     event ReferralRegistryUpdated(address referralRegistry);
@@ -708,6 +708,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
     ) internal view returns (address pair) {
         (address token0, address token1) = PancakeLibrary.sortTokens(tokenA, tokenB);
         pair = address(
+            uint160(
             uint256(
                 keccak256(
                     abi.encodePacked(
@@ -717,6 +718,7 @@ contract FloozRouter is Ownable, Pausable, ReentrancyGuard {
                         forkInitCode[factory] // init code hash
                     )
                 )
+            )
             )
         );
     }

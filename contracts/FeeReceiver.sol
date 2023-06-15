@@ -1,12 +1,12 @@
-pragma solidity =0.6.6;
+pragma solidity =0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 import "./libraries/TransferHelper.sol";
 import "./interfaces/IPancakeRouter02.sol";
 import "./interfaces/IWETH.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract FeeReceiver is Pausable, Ownable {
     using SafeMath for uint256;
@@ -49,8 +49,8 @@ contract FeeReceiver is Pausable, Ownable {
         path[1] = SYA;
 
         uint256 balance = address(this).balance;
-        uint256 amountBuyback = balance.mul(buybackRate).div(FEE_DENOMINATOR);
-        uint256 amountRevenue = balance.sub(amountBuyback);
+        uint256 amountBuyback = balance * buybackRate / FEE_DENOMINATOR;
+        uint256 amountRevenue = balance - amountBuyback;
 
         pancakeRouter.swapExactETHForTokensSupportingFeeOnTransferTokens{value: amountBuyback}(
             0,
