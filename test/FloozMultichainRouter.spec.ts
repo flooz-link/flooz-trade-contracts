@@ -1,7 +1,7 @@
 import chai, { expect } from "chai";
 import { BigNumber, constants, Contract } from "ethers";
 import { solidity, createFixtureLoader } from "ethereum-waffle";
-import hre, { ethers, waffle } from "hardhat";
+import hre, { ethers, upgrades, waffle } from "hardhat";
 
 import { expandTo18Decimals, expandTo9Decimals } from "./shared/utilities";
 import { v2Fixture } from "./shared/fixtures";
@@ -33,6 +33,7 @@ describe("FloozMultichainRouter", () => {
   let referralRegistry: Contract;
   let factoryV2: Contract;
   let feeReceiver: Contract;
+  let routerMultichainToBeUpgraded: Contract;
 
   beforeEach(async function () {
     const fixture = await loadFixture(v2Fixture);
@@ -49,6 +50,7 @@ describe("FloozMultichainRouter", () => {
     referralRegistry = fixture.referralRegistry;
     factoryV2 = fixture.factoryV2;
     feeReceiver = fixture.feeReceiver;
+    routerMultichainToBeUpgraded = fixture.routerMultichainToBeUpgraded;
 
     hre.tracer.nameTags[owner.address] = "Owner";
     hre.tracer.nameTags[wallet.address] = "Wallet";
@@ -1374,6 +1376,19 @@ describe("FloozMultichainRouter", () => {
       expect(await router.hasUserReferee(user.address)).to.eq(true);
       expect(await router.getUserReferee(godModeUser.address)).to.eq(ethers.constants.AddressZero);
       expect(await router.hasUserReferee(godModeUser.address)).to.eq(false);
+    });
+  });
+
+  describe("Proxy", () => {
+    describe("Can update", async () => {
+      let FloozMultichainRouterV2 = await ethers.getContractFactory("FloozMultichainRouterV2");
+
+      const upgradedRouter = await upgrades.upgradeProxy(routerMultichainToBeUpgraded.address, FloozMultichainRouterV2);
+
+      console.log(`upgraded: ${upgradedRouter.address}`);
+      console.log(`old: ${routerMultichainToBeUpgraded.address}`);
+      const updatedFeeDenominator = await upgradedRouter.FEE_DENOMINATOR();
+      expect(updatedFeeDenominator.toString()).to.equal("20000");
     });
   });
 });

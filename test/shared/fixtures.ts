@@ -25,6 +25,7 @@ interface V2Fixture {
   syaPair: Contract;
   dtt: Contract;
   referralRegistry: Contract;
+  routerMultichainToBeUpgraded: Contract;
 }
 
 export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<V2Fixture> {
@@ -110,6 +111,17 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
     oneInchContract,
   ]);
 
+  // deploy Flooz Multichain router
+  const routerMultichainToBeUpgraded = await upgrades.deployProxy(FloozMultichainRouter, [
+    WETH.address,
+    swapFee,
+    referralFee,
+    feeReceiver.address,
+    referralRegistry.address,
+    zeroExContract,
+    oneInchContract,
+  ]);
+
   await routerMultichain.registerFork(factoryV2.address, initHash);
 
   // grant flooz routers anchor manager privilege to register anchors
@@ -158,5 +170,6 @@ export async function v2Fixture([wallet, user, godModeUser]: Wallet[]): Promise<
     syaPair,
     dtt,
     referralRegistry,
+    routerMultichainToBeUpgraded,
   };
 }

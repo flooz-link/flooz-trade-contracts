@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./libraries/TransferHelper.sol";
 import "./libraries/PancakeLibrary.sol";
 import "./interfaces/IReferralRegistry.sol";
@@ -13,7 +14,7 @@ import "./interfaces/IWETH.sol";
 import "./interfaces/IZerox.sol";
 import "./interfaces/IFloozMultiChainRouter.sol";
 
-contract FloozMultichainRouter is Initializable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, IFloozMultiChainRouter {
+contract FloozMultichainRouter is Initializable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable, IFloozMultiChainRouter {
     using SafeMathUpgradeable for uint256;
     
     // Denominator of fee
@@ -92,6 +93,7 @@ contract FloozMultichainRouter is Initializable, OwnableUpgradeable, PausableUpg
         __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
     }
 
     /// @dev execute swap directly on Uniswap/Pancake & simular forks
@@ -884,4 +886,10 @@ contract FloozMultichainRouter is Initializable, OwnableUpgradeable, PausableUpg
         require(_zeroEx != zeroEx, "FloozRouter: new address must be different");
         zeroEx = payable(_zeroEx);
     }
+
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        onlyOwner
+        override
+    {}
 }
